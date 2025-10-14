@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background-dark text-white font-display;
+  }
+  
+  * {
+    @apply scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-dark;
+  }
+}
+
+@layer utilities {
+  .glow-cyan {
+    box-shadow: 0 0 15px 5px rgba(6, 249, 249, 0.3), 0 0 5px 1px rgba(6, 249, 249, 0.2);
+  }
+  
+  .glow-magenta {
+    box-shadow: 0 0 15px 5px rgba(255, 0, 255, 0.3), 0 0 5px 1px rgba(255, 0, 255, 0.2);
+  }
+
+  .text-glow-cyan {
+    text-shadow: 0 0 10px rgba(6, 249, 249, 0.8);
+  }
+
+  .text-glow-magenta {
+    text-shadow: 0 0 10px rgba(255, 0, 255, 0.8);
+  }
+
+  .glassmorphic {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

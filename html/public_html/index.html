@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Anime Streaming Platform</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#06f9f9",
+            "background-light": "#f5f8f8",
+            "background-dark": "#0f2323",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display text-white">
+<div class="relative flex h-auto min-h-screen w-full flex-col bg-background-dark dark group/design-root overflow-x-hidden">
+<!-- Top Navigation Bar -->
+<div class="flex items-center bg-background-dark/80 backdrop-blur-sm p-4 pb-2 justify-between sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary text-3xl">movie</span>
+<nav class="hidden md:flex items-center gap-4">
+<a class="text-white hover:text-primary transition-colors" href="#">Home</a>
+<a class="text-white hover:text-primary transition-colors" href="#">Genres</a>
+<a class="text-white hover:text-primary transition-colors" href="#">New Episodes</a>
+<a class="text-white hover:text-primary transition-colors" href="#">My List</a>
+</nav>
+</div>
+<div class="flex-1 px-4 max-w-md hidden md:block">
+<label class="flex flex-col min-w-40 h-10 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-[#9bbbbb] flex border-none bg-[#273a3a] items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-white focus:outline-0 focus:ring-0 border-none bg-[#273a3a] focus:border-none h-full placeholder:text-[#9bbbbb] px-4 pl-2 text-base font-normal leading-normal" placeholder="Search for anime..." value=""/>
+</div>
+</label>
+</div>
+<div class="flex items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-[#273a3a] text-white">
+<span class="material-symbols-outlined">person</span>
+</button>
+</div>
+</div>
+<!-- Hero Section -->
+<div class="@container">
+<div class="@[480px]:p-4">
+<div class="flex min-h-[480px] flex-col gap-6 bg-cover bg-center bg-no-repeat @[480px]:gap-8 @[480px]:rounded-xl items-start justify-end px-4 pb-10 @[480px]:px-10" data-alt="A futuristic city skyline at dusk with glowing neon lights." style='background-image: linear-gradient(rgba(0, 0, 0, 0.2) 0%, rgb(15, 35, 35) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuCrM-ake220VcwIftnHrIBbIruMwoHsP0iO4gGDwt2-vO7jxWiVzTn3KZmB-HlU2QtwfroYqwNR5kSGayfF2iv9JZ25jMkamJTO37KfGqtKKYXm5hCabPAnzqEYa1aRCiFO1CNtOiIfK8XM1CtFl89-FJ1SyYfJoJ3XwikRzpJCopobZfVWQBrL6MV-ENHSaOTodRbqmD8wOHEpQyEOnde16fTVrKRSbsYVvipRnsQMAKxHFkJkpP9fAHR7j0Bu147LyRwLsH_y4k2I");'>
+<div class="flex flex-col gap-2 text-left">
+<h1 class="text-white text-4xl font-black leading-tight tracking-[-0.033em] @[480px]:text-6xl @[480px]:font-black @[480px]:leading-tight @[480px]:tracking-[-0.033em]">
+              Cybernetic Echoes
+            </h1>
+<h2 class="text-white/80 text-sm font-normal leading-normal @[480px]:text-base @[480px]:font-normal @[480px]:leading-normal max-w-prose">
+              In a neon-drenched metropolis of the future, a reclusive hacker discovers a sentient AI that could either save humanity or bring about its downfall.
+            </h2>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 @[480px]:h-12 @[480px]:px-5 bg-primary text-[#111818] text-sm font-bold leading-normal tracking-[0.015em] @[480px]:text-base @[480px]:font-bold @[480px]:leading-normal @[480px]:tracking-[0.015em] hover:bg-primary/90 transition-colors">
+<span class="truncate">Watch Now</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Popular Now Carousel -->
+<h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Popular Now</h2>
+<div class="flex overflow-x-auto [-ms-scrollbar-style:none] [scrollbar-width:none] [&amp;::-webkit-scrollbar]:hidden">
+<div class="flex items-stretch p-4 gap-4">
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg flex flex-col" data-alt="Abstract anime poster with a character holding a glowing sword." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCtCYVBqXi_y3XIWh3y2JG93_7kWHsNPzZundyKLW-bwPPav8SLhboFyP9KVzfA1TqaMUQsxCPtcHXnxZBgVKaTmJThv-nXy8KdedtzxMCe0l0Kw8VIjpQbsq4v6PX1gwWEmiTEiBr7g5zYW5mUoMDMDCwUwdp-AsmpLkXrZOHFkQLPNFx1onJozIVZwnSv91oGmJEz6f2y_c3K_kgD7Xbf3wWWxGVDlpliuLKHiGK5I1LcmkTkWO8oFDYdczaiiG8Up3wrFtaNzM3E");'></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Blade of the Void</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.8</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg flex flex-col" data-alt="Anime poster featuring a magical girl against a starry sky." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBeaR7qqECHscyLu6McF_S2bR5zhZDVGv8Ys0PzF9rPZc-tUAGzBUne-3WyA79FxLCTfb9_02-t5RAHBsttCmEnA0J87Qiu_uGYy_ug8Hr8v8XJzV7KNw2r_gAMm2JNXSw_o1jfJPnr_Zs4D-fZ7PI9Pd1SdKNNat6IDA7MrJCXsdjLKk_Jcd_Lp3XK6Y6Iq7dNICsSG1v_I3FdfANx2y4qJBxK_iCtsO65GnLp8vwri6orSrYjXyBK3HJfVZqc11MgEA7_1ZQtUeZd");'></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Cosmic Heart</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.5</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg flex flex-col" data-alt="Dark fantasy anime poster with a knight in shadowy armor." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAc2ypnUaAZX6m49SpUOVfun7xws2fGNnJylXkXbXz0xUkJtoy9k1NK-cH4wgcmvBx5c3l7po65ByfRn6KXP5tPPo9MJ7jCLNq2ZFnNFpLL3n7VbN8-_x41YOqry_djcng04jqV5hPJ429eKudWPJx9Zak8FbPPxLf-neeG3BwZth74NmHoePFozi5fM36mealhLuzx_o7nd6o7pJqfVUCDnc7Q_UXdKZYHSOtRxlX_cL6XI9kjAc2mMXKOA5AmZGOAV6qBKTqszfX9");'></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Shadow's Creed</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.9</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg flex flex-col" data-alt="A slice-of-life anime poster showing characters in a cozy cafe." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDjmOANud6gZYbu3HRWo_t5hHekfOy3DgjB4iH2W_fWYZ9PVgkD6IIp1akH38GmIyzcBSFmH9Fj7QFdxos74oOudJrDDczh6fk_DZ3eRLbgnWdz3qPlQyO0UpzBrXblHnz3T53ffYRSRbXSfmzolT5Dg7_7VFmOda5liw3e3To_gWS5EM9bXZmd7Yj7TCCnxa2GDz7TYLVHVjIUCv7gct7BeGOM7k0RDOHw5RtzJflVJ3vmCcobptSTOKK2XQx-Trr-tBdgOnxXoSc5");'></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Kyoto Mornings</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.7</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg flex flex-col" data-alt="Mecha anime poster with a giant robot in an industrial setting." style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAKAMli3rG6gcxus25FfUzOlSvC82ptYzNfzF1iscfTDMyxkxUAIsDn_D-D2gloAEQMIg7OFI11jQFLh0QQ1zre2WfGzWuFhXBsu5mFLenyoljAdrduqdRqTeEIJOtV7cb5r6OxN93rGoasxi4mrZLYK4qqa-4ztuiVhNCiVAjnb3pZ6wlBsztlaLgT9wjEXP2SdS7_Hb-IwCSj8AtkfT-XfIp7zo8UvxCpc19RwU0Xzn58Px1HZ7nkRg7mbjx8w7yXgTgd_eJJmkqo");'></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Iron Genesis</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.6</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Carousel -->
+<h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Action</h2>
+<div class="flex overflow-x-auto [-ms-scrollbar-style:none] [scrollbar-width:none] [&amp;::-webkit-scrollbar]:hidden">
+<div class="flex items-stretch p-4 gap-4">
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg" data-alt="An action anime poster with an explosion in the background." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBdvK3B6-ngSq6evLTp0Knyhuc8r1lJuWzbHrrqrPGApveIJQNy9FgO_pJER6lY6J5Bipc8D_ewL3kMjswgsEL5oiIUNFtunvgFh3nqHwQ5nGuhapUGfvqxl-7UXd1hglWfnJg2rOYg6Z2FepiHsEIAv5vASLIM8thO0n1ABHrFQyakmJFc-L5nbKuC08NB5zIl77oQUUzq5ltNbYhvBriDcB5pP5ParpEyaWJnB1_zE7cYb15D2UgsHb789-XJ3B1blKYrzggelel6');"></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Crimson Fist</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.8</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg" data-alt="An anime poster with a samurai in a dynamic pose." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD973LmHDMIvTfTR7iecSfvTs3HZAfEUNu5sr_4qC64DJjLe1RcYhnYz5TfHWCWYInmaHA0NUAxL2SpHmZvSZ6WNN6xppQiF9vIeZpsAG38ZS17qF78KJMRbM5rwWRy0RJCulz4MJNGH4KEuYuQdCsrRbe3S_SxTr3MLtciBzl1reL_Rz-Qr6MAXr82OsM9TwoMS3CLkcyynb9J4ZyBs-zsL-gosPiTSod3l4VLCMH4JuFE36JrefgcJujo3fEs2vnkSkNs9nqXdLbR');"></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Ronin's Path</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.7</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(6,249,249,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg" data-alt="An anime poster with a sci-fi soldier." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCJOVqOVpiQH6b_jGzO2oIQy18phtV0chwjngH2QbvduRICZZp9MSNItvNavBirAQHGN0L4j9P1CC7agx1Q_GPbTTjykEPgLhErwOIKzupZQJCKdcImbDWNl9CMGB2E8hFatPfq63VqLDwt0WG-hEHlhniGb397tUuKh14KovgFKiSlASlbewvxRBc35LzJkn5Hw8cCZ8_uU3h9zOJ-opjnPBce22oOQrl0dwXr7RzW0kLgp6SeSwNIoFEol2pYgM_70BBIyEtR-frt');"></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Galaxy Striker</p>
+<p class="text-primary text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.6</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Horror Carousel -->
+<h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Horror</h2>
+<div class="flex overflow-x-auto [-ms-scrollbar-style:none] [scrollbar-width:none] [&amp;::-webkit-scrollbar]:hidden">
+<div class="flex items-stretch p-4 gap-4">
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(255,0,255,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg" data-alt="A creepy anime poster with a shadowy figure." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBVzOFtau1muZgRPtFhSTyfDtK9N3krFXCDNFKxqpxK9bQkz64mUhti7JuK3GTe2qLU2xqeAfmhW9bBOgMXGcyALjbcXYVTLbbKOBEhu3RKGcl2tlP_s9rC1CycTMf97v4-V4wRhh7ET2O-XjB9prrG8sVLX463q3hg8Vqnk1qEM2lT8Yk8I-I3dHsBeo6uRGJRGjsSSUUIazwfnzuUnmFwryYupaGwk_1lNkYQxP-0D67QkFET7HlZNLCXZvFUYx-hNzllvdv1E4tG');"></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">The Unseen</p>
+<p class="text-[#FF00FF] text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.9</p>
+</div>
+</div>
+</div>
+<div class="flex h-full flex-1 flex-col gap-3 rounded-xl bg-[#1b2727]/50 shadow-[0_0_15px_rgba(255,0,255,0.1)] min-w-60 transform hover:scale-105 transition-transform duration-300">
+<div class="w-full bg-center bg-no-repeat aspect-[3/4] bg-cover rounded-lg" data-alt="A horror anime poster with a haunted house." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBGl9_ZqNsPLQmL53e7qHmQFNXQfDb27peJh7MuvCH9p8EoRsAyRpTwWU1kqqyytpLUef7FSvutBTTUuqzNRrwfLCvDqIpWKoxuJ3aRC892gj1CNL1MnYjZSPUOjLEYrk5ZCWkZx9MCUUfWc3mXWm_yf61X0slB1cu45o5PmdZ4klleChAy2DAXwl6zvGc-abwopjPIAogfc968E24ozJD8zAFmC9NosF62zXn4lM2WYDM8erWmQdS6zvnbSxhj2VupD1AXiqFYfiT9');"></div>
+<div class="flex flex-col flex-1 justify-between p-4 pt-0 gap-3">
+<div>
+<p class="text-white text-base font-medium leading-normal">Echoes of the Past</p>
+<p class="text-[#FF00FF] text-sm font-normal leading-normal flex items-center gap-1"><span class="material-symbols-outlined text-sm">star</span> 4.7</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="h-10"></div>
+</div>
+</body></html>
