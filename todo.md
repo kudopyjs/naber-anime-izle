@@ -102,13 +102,13 @@ Prompt reference: *"Modern login and signup page for anime platform"*
 
 ---
 
-## 🧩 Phase 8 – Optional Enhancements
-- [ ] Add “Continue Watching” row below hero section
-- [ ] Add search suggestions dropdown
-- [ ] Add watch progress indicators
-- [ ] Add genre filter menu
-- [ ] Add parallax or blur effect in hero banner
-- [ ] Prepare placeholders for future API integration
+## 🧩 Phase 8 – Optional Enhancements ✅
+- [x] Add "Continue Watching" row below hero section
+- [x] Add search suggestions dropdown
+- [x] Add watch progress indicators
+- [x] Add genre filter menu
+- [x] Add parallax or blur effect in hero banner
+- [x] Prepare placeholders for future API integration
 
 ---
 
