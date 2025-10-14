@@ -6,10 +6,6 @@
   body {
     @apply bg-background-dark text-white font-display;
   }
-  
-  * {
-    @apply scrollbar-thin scrollbar-thumb-primary scrollbar-track-background-dark;
-  }
 }
 
 @layer utilities {
