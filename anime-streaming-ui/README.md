@@ -38,6 +38,19 @@ anime-streaming-ui/
 npm install
 ```
 
+### Configuration
+1. Copy the environment example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Add your Google OAuth Client ID to `.env`:
+   ```env
+   VITE_GOOGLE_CLIENT_ID=your_google_client_id_here.apps.googleusercontent.com
+   ```
+
+   See [GOOGLE_OAUTH_SETUP.md](./GOOGLE_OAUTH_SETUP.md) for detailed setup instructions.
+
 ### Development
 ```bash
 npm run dev
@@ -63,13 +76,16 @@ npm run preview
 - [ ] Phase 7: Animations & Microinteractions
 - [ ] Phase 8: Optional Enhancements
 
-## 🎯 Features (Planned)
-- Modern dark-neon theme
-- Category-based browsing
-- Immersive video experience
-- Clean authentication flow
-- Smooth animations and transitions
-- Responsive design (mobile, tablet, desktop)
+## 🎯 Features
+- ✅ Modern dark-neon theme
+- ✅ Category-based browsing with carousels
+- ✅ Immersive video player experience
+- ✅ Google OAuth authentication
+- ✅ Clean authentication flow (Login/Signup)
+- ✅ Smooth animations and transitions (Framer Motion)
+- ✅ Responsive design (mobile, tablet, desktop)
+- ✅ Glassmorphic UI elements
+- ✅ Neon glow effects
 
 ## 📝 License
 Private project
