@@ -96,10 +96,11 @@ function Navbar() {
 
               {/* Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-card-dark border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-card-dark border border-white/10 rounded-lg shadow-xl overflow-hidden z-50">
                   <div className="p-3 border-b border-white/10">
                     <p className="text-white font-semibold text-sm">{user.username}</p>
                     <p className="text-white/60 text-xs truncate">{user.email}</p>
+                    <p className="text-primary text-xs mt-1 font-semibold uppercase">{user.role}</p>
                   </div>
                   <div className="py-2">
                     <Link
@@ -116,6 +117,28 @@ function Navbar() {
                     >
                       Settings
                     </Link>
+                    
+                    {/* Fansub/Admin Upload Option */}
+                    {(user.role === 'fansub' || user.role === 'admin') && (
+                      <Link
+                        to="/upload"
+                        className="block px-4 py-2 text-primary hover:bg-white/10 transition-colors text-sm font-semibold"
+                        onClick={() => setShowUserMenu(false)}
+                      >
+                        📤 Upload Video
+                      </Link>
+                    )}
+                    
+                    {/* Admin Panel Option */}
+                    {user.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        className="block px-4 py-2 text-primary-magenta hover:bg-white/10 transition-colors text-sm font-semibold"
+                        onClick={() => setShowUserMenu(false)}
+                      >
+                        ⚙️ Admin Panel
+                      </Link>
+                    )}
                   </div>
                   <div className="border-t border-white/10">
                     <button

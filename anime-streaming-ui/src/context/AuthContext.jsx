@@ -55,6 +55,7 @@ export const AuthProvider = ({ children }) => {
             email: foundUser.email,
             username: foundUser.username,
             picture: foundUser.picture || null,
+            role: foundUser.role || 'user',
             loginMethod: 'email'
           }
           setUser(userData)
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     })
   }
 
-  const signup = async (username, email, password) => {
+  const signup = async (username, email, password, role = 'user') => {
     // Simulate API call
     return new Promise((resolve, reject) => {
       setTimeout(() => {
@@ -80,12 +81,13 @@ export const AuthProvider = ({ children }) => {
           return
         }
 
-        // Create new user
+        // Create new user with role
         const newUser = {
           id: Date.now().toString(),
           username,
           email,
           password, // In production, this should be hashed on the backend!
+          role: role, // 'user', 'fansub', or 'admin'
           createdAt: new Date().toISOString()
         }
 
@@ -99,6 +101,7 @@ export const AuthProvider = ({ children }) => {
           email: newUser.email,
           username: newUser.username,
           picture: null,
+          role: newUser.role,
           loginMethod: 'email'
         }
         setUser(userData)
@@ -114,10 +117,34 @@ export const AuthProvider = ({ children }) => {
       email: googleUserInfo.email,
       username: googleUserInfo.name,
       picture: googleUserInfo.picture,
+      role: 'user', // Default role for Google OAuth users
       loginMethod: 'google'
     }
     setUser(userData)
     return userData
+  }
+
+  const hasRole = (requiredRole) => {
+    if (!user) return false
+    
+    const roleHierarchy = {
+      'user': 1,
+      'fansub': 2,
+      'admin': 3
+    }
+    
+    const userRoleLevel = roleHierarchy[user.role] || 0
+    const requiredRoleLevel = roleHierarchy[requiredRole] || 0
+    
+    return userRoleLevel >= requiredRoleLevel
+  }
+
+  const canUploadVideo = () => {
+    return hasRole('fansub') // fansub and admin can upload
+  }
+
+  const canManageServer = () => {
+    return user?.role === 'admin' // only admin
   }
 
   const logout = () => {
@@ -132,7 +159,10 @@ export const AuthProvider = ({ children }) => {
     signup,
     loginWithGoogle,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    hasRole,
+    canUploadVideo,
+    canManageServer
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

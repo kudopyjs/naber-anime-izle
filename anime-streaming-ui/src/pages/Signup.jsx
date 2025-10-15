@@ -16,7 +16,8 @@ function Signup() {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'user'
   })
 
   // Redirect if already logged in
@@ -56,7 +57,7 @@ function Signup() {
     setLoading(true)
 
     try {
-      await signup(formData.username, formData.email, formData.password)
+      await signup(formData.username, formData.email, formData.password, formData.role)
       navigate('/')
     } catch (err) {
       setError(err.message)
@@ -197,6 +198,27 @@ function Signup() {
                   {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
                 </button>
               </div>
+            </div>
+
+            {/* Role Selection */}
+            <div>
+              <label className="block text-sm font-medium text-white/90 mb-2">
+                Account Type
+              </label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/50 transition-all"
+              >
+                <option value="user">User - Watch anime</option>
+                <option value="fansub">Fansub - Upload videos</option>
+                <option value="admin">Admin - Full access</option>
+              </select>
+              <p className="text-white/40 text-xs mt-1">
+                {formData.role === 'user' && '• Watch and enjoy anime content'}
+                {formData.role === 'fansub' && '• Upload and manage anime videos'}
+                {formData.role === 'admin' && '• Full server management access'}
+              </p>
             </div>
 
             {/* Submit Button */}
