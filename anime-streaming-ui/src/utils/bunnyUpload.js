@@ -71,14 +71,32 @@ function simpleResolveURL(url) {
     return { success: true, url: url, platform: 'mail.ru' }
   }
   
-  // Sibnet için - DİREKT URL KULLANMA, backend gerekli
+  // Sibnet için - Cloudflare Worker proxy kullan
   if (url.includes('sibnet.ru')) {
-    console.warn('⚠️ Sibnet URL\'leri için backend API gerekli!')
-    console.warn('⚠️ Backend çalıştırın: python upload_api.py')
-    return {
-      success: false,
-      error: 'Sibnet URL\'leri için backend API gerekli. Backend çalıştırın: python upload_api.py',
-      url: url
+    console.log('🔍 Sibnet URL tespit edildi')
+    
+    // Cloudflare Worker URL'si (.env'den al)
+    const PROXY_URL = import.meta.env.VITE_VIDEO_PROXY_URL
+    
+    if (PROXY_URL) {
+      console.log('✅ Cloudflare Worker proxy kullanılacak')
+      return {
+        success: true,
+        url: url,
+        platform: 'sibnet',
+        useProxy: true,
+        proxyUrl: PROXY_URL
+      }
+    } else {
+      console.warn('⚠️ Sibnet için backend API veya Cloudflare Worker gerekli!')
+      console.warn('⚠️ Seçenekler:')
+      console.warn('   1. Backend: python upload_api.py')
+      console.warn('   2. Cloudflare Worker: wrangler deploy')
+      return {
+        success: false,
+        error: 'Sibnet için backend API veya Cloudflare Worker gerekli',
+        url: url
+      }
     }
   }
   
@@ -229,6 +247,14 @@ export async function uploadFromURL(videoUrl, title, animeName = null, collectio
     console.log('  Title:', title)
     console.log('  Collection ID:', collectionId || 'Yok (ana dizin)')
     
+    // Sibnet için özel headers ekle
+    const fetchHeaders = {}
+    if (resolvedUrl.includes('sibnet.ru')) {
+      console.log('  🔧 Sibnet için özel headers ekleniyor...')
+      fetchHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      fetchHeaders['Referer'] = 'https://video.sibnet.ru/'
+    }
+    
     const response = await fetch(
       `https://video.bunnycdn.com/library/${LIBRARY_ID}/videos/fetch`,
       {
@@ -240,7 +266,8 @@ export async function uploadFromURL(videoUrl, title, animeName = null, collectio
         body: JSON.stringify({
           url: resolvedUrl, // Çözümlenmiş URL kullan
           title: title,
-          collectionId: collectionId
+          collectionId: collectionId,
+          headers: fetchHeaders // Özel headers
         })
       }
     )

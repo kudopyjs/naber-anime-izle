@@ -7,6 +7,11 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import UploadVideoNew from './pages/UploadVideoNew'
 import AdminPanel from './pages/AdminPanel'
+import AddAnime from './pages/AddAnime'
+import EditAnime from './pages/EditAnime'
+import AnimeDetail from './pages/AnimeDetail'
+import BunnySync from './pages/BunnySync'
+import UserProfile from './pages/UserProfile'
 
 function App() {
   return (
@@ -16,7 +21,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route 
-              path="/watch/:id" 
+              path="/watch/:animeSlug/:seasonNumber/:episodeNumber" 
               element={
                 <ProtectedRoute>
                   <Watch />
@@ -38,6 +43,32 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AdminPanel />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/add-anime" 
+              element={
+                <ProtectedRoute>
+                  <AddAnime />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/edit-anime/:animeSlug" 
+              element={
+                <ProtectedRoute>
+                  <EditAnime />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="/anime/:animeSlug" element={<AnimeDetail />} />
+            <Route path="/user/:userId" element={<UserProfile />} />
+            <Route 
+              path="/bunny-sync" 
+              element={
+                <ProtectedRoute>
+                  <BunnySync />
                 </ProtectedRoute>
               } 
             />

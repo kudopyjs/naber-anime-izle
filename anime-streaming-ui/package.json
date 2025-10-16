@@ -6,13 +6,25 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/download-upload-api.js",
+    "turkanime-api": "node server/turkanime-api.js",
+    "b2-api": "node server/b2-upload-api.js"
   },
   "dependencies": {
+    "axios": "^1.6.2",
+    "backblaze-b2": "^1.7.0",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "framer-motion": "^10.16.16",
+    "hls.js": "^1.6.13",
+    "multer": "^1.4.5-lts.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "framer-motion": "^10.16.16"
+    "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

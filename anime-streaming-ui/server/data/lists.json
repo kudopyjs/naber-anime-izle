@@ -1,0 +1,64 @@
+[
+  {
+    "id": "1760607858782-watch-later-1760607858806",
+    "userId": "1760607858782",
+    "name": "Daha Sonra İzle",
+    "description": "İzlemek istediğim animeler",
+    "isPublic": false,
+    "animes": [
+      {
+        "slug": "naruto",
+        "name": "Naruto",
+        "addedAt": "2025-10-16T10:29:21.690Z"
+      },
+      {
+        "slug": "bleach-thousand-year-blood-war",
+        "name": "Bleach: Thousand Year Blood War",
+        "addedAt": "2025-10-16T10:29:32.954Z"
+      }
+    ],
+    "createdAt": "2025-10-16T09:44:18.806Z"
+  },
+  {
+    "id": "1760607858782-1760610593189",
+    "userId": "1760607858782",
+    "name": "İzledim",
+    "description": "Bu animeleri izledim",
+    "isPublic": true,
+    "animes": [
+      {
+        "slug": "bleach-thousand-year-blood-war",
+        "name": "Bleach: Thousand Year Blood War",
+        "addedAt": "2025-10-16T10:29:54.586Z"
+      }
+    ],
+    "createdAt": "2025-10-16T10:29:53.189Z"
+  },
+  {
+    "id": "1760541051717-watch-later-1760610670026",
+    "userId": "1760541051717",
+    "name": "Daha Sonra İzle",
+    "description": "İzlemek istediğim animeler",
+    "isPublic": false,
+    "animes": [],
+    "createdAt": "2025-10-16T10:31:10.026Z"
+  },
+  {
+    "id": "1760472374265-watch-later-1760610672377",
+    "userId": "1760472374265",
+    "name": "Daha Sonra İzle",
+    "description": "İzlemek istediğim animeler",
+    "isPublic": false,
+    "animes": [],
+    "createdAt": "2025-10-16T10:31:12.377Z"
+  },
+  {
+    "id": "1760471637747-watch-later-1760610673773",
+    "userId": "1760471637747",
+    "name": "Daha Sonra İzle",
+    "description": "İzlemek istediğim animeler",
+    "isPublic": false,
+    "animes": [],
+    "createdAt": "2025-10-16T10:31:13.773Z"
+  }
+]

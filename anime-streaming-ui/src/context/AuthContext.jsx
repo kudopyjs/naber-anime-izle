@@ -69,8 +69,8 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (username, email, password, role = 'user') => {
     // Simulate API call
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
+    return new Promise(async (resolve, reject) => {
+      setTimeout(async () => {
         // Get stored users from localStorage
         const storedUsers = JSON.parse(localStorage.getItem('users') || '[]')
         
@@ -94,6 +94,21 @@ export const AuthProvider = ({ children }) => {
         // Save to localStorage
         storedUsers.push(newUser)
         localStorage.setItem('users', JSON.stringify(storedUsers))
+        
+        // Backend'de user oluştur ve otomatik "Daha Sonra İzle" listesi ekle
+        try {
+          await fetch('http://localhost:5002/api/user/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: newUser.id,
+              username: newUser.username,
+              email: newUser.email
+            })
+          })
+        } catch (err) {
+          console.error('Error creating user in backend:', err)
+        }
 
         // Set as current user
         const userData = {

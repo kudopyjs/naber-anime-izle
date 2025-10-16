@@ -89,8 +89,8 @@ class BunnyUploader:
         print(f"  ℹ️ '{name}' isimli collection bulunamadı")
         return None
     
-    def get_or_create_collection(self, name: str) -> Optional[str]:
-        """Collection'ı bul, yoksa oluştur"""
+    def get_or_create_collection(self, name: str, parent_id: Optional[str] = None) -> Optional[str]:
+        """Collection'ı bul, yoksa oluştur (parent collection içinde)"""
         # Önce var mı kontrol et
         collection_id = self.find_collection_by_name(name)
         if collection_id:
@@ -98,15 +98,20 @@ class BunnyUploader:
         
         # Yoksa oluştur
         print(f"📁 Yeni collection oluşturuluyor: {name}")
-        return self.create_collection(name)
+        return self.create_collection(name, parent_id)
     
-    def create_collection(self, name: str) -> Optional[str]:
+    def create_collection(self, name: str, parent_id: Optional[str] = None) -> Optional[str]:
         """Bunny'de koleksiyon (klasör) oluştur"""
         try:
+            payload = {"name": name}
+            if parent_id:
+                payload["parentId"] = parent_id
+                print(f"  📂 Parent Collection ID: {parent_id}")
+            
             response = requests.post(
                 f"{self.base_url}/collections",
                 headers=self.headers,
-                json={"name": name}
+                json=payload
             )
             if response.status_code == 200:
                 collection_id = response.json().get("guid")
@@ -403,10 +408,11 @@ class TurkAnimeToBunny:
         print(f"\nKullanım: python {sys.argv[0]} --anime SLUG --start 1 --end 10")
     
     def transfer_anime(self, anime_slug: str, start_ep: int = 1, end_ep: int = None, 
-                      fansub: str = None, quality_priority: bool = True):
-        """Anime bölümlerini Bunny.net'e aktar"""
+                      season: int = 1, fansub: str = None, quality_priority: bool = True):
+        """Anime bölümlerini Bunny.net'e aktar (sezonlu sistem)"""
         
         print(f"\n🎬 Anime: {anime_slug}")
+        print(f"📺 Sezon: {season}")
         print("=" * 60)
         
         # Anime objesini oluştur
@@ -418,13 +424,14 @@ class TurkAnimeToBunny:
             print(f"❌ Anime bulunamadı: {e}")
             return
         
-        # Bunny'de koleksiyon bul veya oluştur
-        print(f"\n📁 Collection kontrol ediliyor: {anime.title}")
-        collection_id = self.bunny.get_or_create_collection(anime.title)
-        if collection_id:
-            print(f"✅ Koleksiyon ID: {collection_id}")
-        else:
-            print("⚠️ Koleksiyon bulunamadı/oluşturulamadı, videolar ana dizine yüklenecek")
+        # Collection adını sezon ile birlikte oluştur
+        collection_name = f"{anime.title} Season {season}"
+        print(f"\n📁 Collection kontrol ediliyor: {collection_name}")
+        collection_id = self.bunny.get_or_create_collection(collection_name)
+        if not collection_id:
+            print("❌ Koleksiyon oluşturulamadı!")
+            return
+        print(f"✅ Koleksiyon ID: {collection_id}")
         
         # Bölüm aralığını belirle
         if end_ep is None:
@@ -477,8 +484,8 @@ class TurkAnimeToBunny:
                 
                 print(f"🔗 URL: {video_url[:80]}...")
                 
-                # Bunny.net'e aktar (yt-dlp ile URL çözümleme)
-                print("📤 Bunny.net'e aktarılıyor...")
+                # Bunny.net'e aktar
+                print(f"📤 Bunny.net'e aktarılıyor (Sezon {season})...")
                 result = self.bunny.upload_from_url(
                     video_url=video_url,
                     title=f"{anime.title} - {bolum.title}",
@@ -631,6 +638,7 @@ def main():
     parser.add_argument("--start", type=int, default=1, help="Başlangıç bölümü (varsayılan: 1)")
     parser.add_argument("--end", type=int, help="Bitiş bölümü (varsayılan: son bölüm)")
     parser.add_argument("--all", action="store_true", help="Tüm bölümleri aktar")
+    parser.add_argument("--season", type=int, default=1, help="Sezon numarası (varsayılan: 1)")
     parser.add_argument("--fansub", type=str, help="Tercih edilen fansub")
     parser.add_argument("--no-quality", action="store_true", help="Kalite önceliğini kapat")
     
@@ -645,6 +653,7 @@ def main():
             anime_slug=args.anime,
             start_ep=args.start,
             end_ep=args.end if not args.all else None,
+            season=args.season,
             fansub=args.fansub,
             quality_priority=not args.no_quality
         )

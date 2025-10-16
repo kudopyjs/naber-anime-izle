@@ -1,0 +1,43 @@
+[
+  {
+    "id": "1760550333498",
+    "name": "Naruto",
+    "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+    "description": "Naruto yaramazlıklar yapıyor.",
+    "genre": "Aksiyon, Macera, Shonen",
+    "year": "2007",
+    "status": "completed",
+    "createdBy": "kudo.py",
+    "createdAt": "2025-10-15T17:45:33.498Z",
+    "genres": [],
+    "coverImage": "http://localhost:5002/uploads/covers/naruto/cover.jpg",
+    "updatedAt": "2025-10-15T21:32:25.672Z"
+  },
+  {
+    "id": "1760553474753",
+    "name": "Bleach: Thousand Year Blood War",
+    "collectionId": "a5967c79-3d21-4cd3-ab9c-83aa690352f3",
+    "description": "Ichigo yapıyor bişiler",
+    "genre": "Aksiyon, Macera",
+    "year": "2022",
+    "status": "ongoing",
+    "createdBy": "kudo.py",
+    "createdAt": "2025-10-15T18:37:54.753Z",
+    "genres": [],
+    "coverImage": "http://localhost:5002/uploads/covers/bleach-thousand-year-blood-war/cover.jpg",
+    "updatedAt": "2025-10-15T21:33:06.991Z"
+  },
+  {
+    "id": "1760611002255",
+    "name": "The Eminence In Shadow",
+    "collectionId": "17d4e445-c705-4dd6-a3cf-ea26bbfe6f32",
+    "description": "Ulan shadow yapılır mı öyle",
+    "genres": [],
+    "year": "2022",
+    "status": "Tamamlandı",
+    "coverImage": "http://localhost:5002/uploads/covers/the-eminence-in-shadow/cover.jpg",
+    "createdBy": "kudo.py",
+    "createdAt": "2025-10-16T10:36:42.255Z",
+    "updatedAt": "2025-10-16T10:49:41.176Z"
+  }
+]

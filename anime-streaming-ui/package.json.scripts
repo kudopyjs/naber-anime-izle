@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "download-upload": "node download-and-upload.js"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0"
+  }
+}

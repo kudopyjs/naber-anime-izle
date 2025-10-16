@@ -104,18 +104,18 @@ function Navbar() {
                   </div>
                   <div className="py-2">
                     <Link
-                      to="/"
+                      to={`/user/${user.id}`}
                       className="block px-4 py-2 text-white hover:bg-white/10 transition-colors text-sm"
                       onClick={() => setShowUserMenu(false)}
                     >
-                      My List
+                      👤 Profilim
                     </Link>
                     <Link
-                      to="/"
+                      to={`/user/${user.id}`}
                       className="block px-4 py-2 text-white hover:bg-white/10 transition-colors text-sm"
                       onClick={() => setShowUserMenu(false)}
                     >
-                      Settings
+                      📝 Listelerim
                     </Link>
                     
                     {/* Fansub/Admin Upload Option */}

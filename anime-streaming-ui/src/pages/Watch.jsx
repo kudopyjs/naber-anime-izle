@@ -1,34 +1,266 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import Hls from 'hls.js'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 
 function Watch() {
-  const { id } = useParams()
-  const [isPlaying, setIsPlaying] = useState(false)
+  const { animeSlug, seasonNumber, episodeNumber } = useParams()
+  const navigate = useNavigate()
+  const videoRef = useRef(null)
+  const hlsRef = useRef(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [videoData, setVideoData] = useState(null)
+  const [anime, setAnime] = useState(null)
+  const [allEpisodes, setAllEpisodes] = useState([])
+  const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(-1)
+  const [videoId, setVideoId] = useState(null)
 
-  // Mock data - in real app this would come from API
-  const animeInfo = {
-    title: 'Cybernetic Echoes',
-    episode: 7,
-    rating: 4.5,
-    duration: '23:45',
-    description: 'In a neon-drenched metropolis, a rogue android discovers a hidden truth that could shatter the fragile peace between humans and machines. This episode follows Kaito as he delves deeper into the digital underworld...',
-    thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAW97_rdIranqBqIyAiYVU1L1SVSa-ABgP36XFZso5OTC-djb7CRh9qaP_8UFevb0iIxf9O0_PSz-bZaCpr456NDGnmGf6PxkXMrbmhLJ3qM1BvBHmH5do_NKKjr7x7mX7hi0vzu7v4-UHC4oS8IiUf4qhznrACoDM3dle98KhGjKSYg2hMex3m0Xa2L8tUWXbE8Tus2skH1mSvYHlF8rY1-NMC7wk-tISp3wMC5202fTGW6Flo50izTtbrP0BZMyI5CWpbOYnSIvgX'
+  useEffect(() => {
+    loadVideoData()
+  }, [animeSlug, seasonNumber, episodeNumber])
+
+  useEffect(() => {
+    console.log('🔄 useEffect triggered:', { 
+      hasVideoData: !!videoData, 
+      hasVideoRef: !!videoRef.current,
+      videoStatus: videoData?.status 
+    })
+    
+    // Video element'in render edilmesi için kısa bir delay
+    if (videoData && !videoRef.current) {
+      console.log('⏳ Waiting for video element to mount...')
+      const timer = setTimeout(() => {
+        if (videoRef.current) {
+          console.log('🎬 Initializing player (delayed)...')
+          initializePlayer()
+        } else {
+          console.error('❌ Video element still not mounted after delay!')
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+    
+    if (videoData && videoRef.current) {
+      console.log('🎬 Initializing player...')
+      const cleanup = initializePlayer()
+      return cleanup
+    } else {
+      console.log('⏸️ Player not initialized:', {
+        videoData: !!videoData,
+        videoRef: !!videoRef.current
+      })
+    }
+  }, [videoData, videoId])
+
+  const loadVideoData = async () => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      console.log('🔍 Loading video:', { animeSlug, seasonNumber, episodeNumber })
+      
+      // Bunny sync data'dan anime ve sezon bilgisini bul
+      const syncResponse = await fetch('http://localhost:5002/api/bunny/sync-data')
+      const syncData = await syncResponse.json()
+      
+      if (!syncData.success) {
+        throw new Error('Anime verisi yüklenemedi')
+      }
+      
+      // Anime slug'a göre anime bul
+      const foundAnime = syncData.animes.find(a => 
+        a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === animeSlug.toLowerCase()
+      )
+      
+      if (!foundAnime) {
+        throw new Error('Anime bulunamadı')
+      }
+      
+      console.log('✅ Found anime:', foundAnime.name)
+      
+      // Sezon bilgisini bul
+      const season = foundAnime.seasons.find(s => s.season === parseInt(seasonNumber))
+      
+      if (!season) {
+        throw new Error(`Sezon ${seasonNumber} bulunamadı`)
+      }
+      
+      console.log('✅ Found season:', season.season, season.collectionName)
+      
+      // Collection'daki tüm videoları çek
+      const episodesResponse = await fetch(`http://localhost:5002/api/bunny/collection/${season.collectionId}/videos`)
+      const episodesData = await episodesResponse.json()
+      
+      if (!episodesData.success) {
+        throw new Error('Bölümler yüklenemedi')
+      }
+      
+      // Videoları tarihe göre sırala (en eski en başta)
+      const sortedVideos = [...episodesData.videos].sort((a, b) => 
+        new Date(a.dateUploaded) - new Date(b.dateUploaded)
+      )
+      
+      setAllEpisodes(sortedVideos)
+      setAnime({ ...foundAnime, currentSeason: season })
+      
+      // Episode number'a göre video bul (1-indexed)
+      const episodeIndex = parseInt(episodeNumber) - 1
+      const foundVideo = sortedVideos[episodeIndex]
+      
+      if (!foundVideo) {
+        throw new Error(`Sezon ${seasonNumber} Bölüm ${episodeNumber} bulunamadı`)
+      }
+      
+      console.log('✅ Found episode:', foundVideo.title)
+      setVideoData(foundVideo)
+      setVideoId(foundVideo.guid)
+      setCurrentEpisodeIndex(episodeIndex)
+      
+    } catch (err) {
+      console.error('Error loading video:', err)
+      setError(err.message || 'Video yüklenirken hata oluştu')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const episodes = [
-    { id: 1, title: 'Episode 1', duration: '24:12', watched: true },
-    { id: 7, title: 'Episode 7', duration: '23:45', watched: false },
-    { id: 8, title: 'Episode 8: Digital Ghost', duration: '23:50', watched: false }
-  ]
+  const initializePlayer = () => {
+    const video = videoRef.current
+    if (!video) return
 
-  const recommended = [
-    { id: 11, title: 'Neon Genesis', image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCOrZSxX_QzD1bxcoK42PdPCr_rJtalFjMqj6rPJcgb6JfLMR94QoPu-iEX19GxsglOHXvh5sBBBjkVF3Q8II0hEA1OirTD-I-5ARp4vTNhTu7R2fyPmhUpZQeTUikFNXtg5Xkd0z61cgsshavAD14zMmUZYdf8zQGk8I93BmaxWvF-vlE--ky7g_jqwYdpZdZl2wQVrTARV49t7xkviHnDPaRNXq1YNtLCbHByZI_q9nUuN0nd6ShiqzPFglTK6WR-Ga4Lh2vJ1REW' },
-    { id: 12, title: 'Akira Redux', image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcOZwArfhwGd0pWoCXM2raJX6G3c2kTPuuSOOKPdSrD_oR2xuStepsoRIIbhrGUiizy9f_ffCUCDTHpzek_aP3ZjNvGPOYIAwtvkjINb_Olv2AI0DIsiwFoVVsTTYmc1T0VvVrXRcYWrqBjR0gYgQAIqT8f4TJYPGE-JcS13MMHg0iaQNZ23rzSxSD_gv6P_CUS-MPVA7X_GLBpBhOuDVCCJf5RNgMCmCv3jIJxDCl-Fd6MZgLYw36xTRshNUum3e_UIumHER9Bcpj' },
-    { id: 13, title: 'Ghost in the Machine', image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDRJkfPhYsBZ_pFc99mBFfPdxzSzEzG20mlbdO5NjJn_PitEpYCSEGKbYkcYStphIFCkPg5VPdWjOQIvOU26sE67yoEZjVzWqUHqf_I5dfgFlYOaGp5jpLdywr3veTNoOjVNA_qn01f0t6fzNNuhP3OfCKY9dP1DBT1MD0d7KN4fsxq_Js9CO821lY20fk0Jlg2NSNThxK-mbZVCBDBaifeDMcM966GKAS3mT6jGWTNeUoUqtWMVTj2vJFY8BbWBhSilToWxdO6EAC5' }
-  ]
+    // Önceki HLS instance'ını temizle
+    if (hlsRef.current) {
+      hlsRef.current.destroy()
+      hlsRef.current = null
+    }
+
+    // Video ID'yi al (guid veya videoLibraryId)
+    const currentVideoId = videoData.guid || videoData.videoLibraryId
+    
+    // Bunny.net için doğru URL formatı
+    // Eğer video public değilse, signed URL kullanmamız gerekebilir
+    const videoUrl = `https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${currentVideoId}/playlist.m3u8`
+    
+    console.log('Video URL:', videoUrl)
+    console.log('Video Data:', videoData)
+    console.log('Video Status:', videoData.status)
+    
+    // 403 hatası alıyorsak, video public değil veya referrer kontrolü var
+    // Bunny.net dashboard'dan şunları kontrol et:
+    // 1. Video Settings -> Security -> Allowed Referrers
+    // 2. Video Settings -> Security -> Token Authentication (kapalı olmalı)
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      })
+      
+      hlsRef.current = hls
+      
+      hls.loadSource(videoUrl)
+      hls.attachMedia(video)
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('✅ Video ready to play')
+        console.log('Available quality levels:', hls.levels)
+        video.play().catch(err => {
+          console.log('⚠️ Autoplay prevented:', err)
+        })
+      })
+      
+      hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
+        console.log('✅ Quality level loaded:', data.level, data.details)
+      })
+      
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS error:', data)
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error('Network error - video bulunamadı veya erişilemiyor')
+              setError('Video yüklenemedi. Lütfen Bunny CDN ayarlarınızı kontrol edin.')
+              break
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error('Media error - video formatı hatalı')
+              hls.recoverMediaError()
+              break
+            default:
+              setError('Video oynatılırken hata oluştu')
+              break
+          }
+        }
+      })
+      
+      return () => {
+        if (hlsRef.current) {
+          hlsRef.current.destroy()
+          hlsRef.current = null
+        }
+      }
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS support
+      console.log('🍎 Using Safari native HLS')
+      video.src = videoUrl
+      video.play().catch(err => {
+        console.log('⚠️ Autoplay prevented:', err)
+      })
+      
+      return () => {
+        console.log('🧹 Cleaning up Safari player')
+        video.src = ''
+      }
+    } else {
+      console.error('❌ HLS not supported')
+      setError('Bu tarayıcı video formatını desteklemiyor')
+      return () => {}
+    }
+  }
+
+  const nextEpisode = allEpisodes[currentEpisodeIndex + 1]
+  const prevEpisode = allEpisodes[currentEpisodeIndex - 1]
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-dark">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+            <p className="text-white/60">Video yükleniyor...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (error || !videoData) {
+    console.log('❌ Showing error page:', { error, hasVideoData: !!videoData })
+    return (
+      <div className="min-h-screen bg-background-dark">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-white mb-4">😕 Video Bulunamadı</h1>
+            <p className="text-white/60 mb-6">{error || 'Bu video mevcut değil'}</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-primary text-background-dark font-bold rounded-lg hover:bg-primary/80 transition-colors"
+            >
+              Ana Sayfaya Dön
+            </button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  console.log('✅ Rendering video player page')
 
   return (
     <div className="min-h-screen bg-background-dark">
@@ -42,91 +274,176 @@ function Watch() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative aspect-video rounded-xl overflow-hidden glow-cyan bg-black"
+              className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-2xl"
             >
-              <img
-                src={animeInfo.thumbnail}
-                alt={animeInfo.title}
-                className="w-full h-full object-cover"
+              <video
+                ref={videoRef}
+                className="w-full h-full"
+                controls
+                playsInline
+                poster={videoData?.thumbnailFileName ? `https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${videoData.guid}/${videoData.thumbnailFileName}` : undefined}
               />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="w-20 h-20 rounded-full bg-black/50 hover:bg-primary flex items-center justify-center transition-all transform hover:scale-110 glow-magenta"
-                >
-                  <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Video Controls */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
-                    <div className="h-full w-1/2 bg-primary" />
+              
+              {/* Encoding Warning Overlay */}
+              {videoData && videoData.status !== 4 && videoData.status !== 5 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                  <div className="text-center p-8">
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+                    <h3 className="text-white text-2xl font-bold mb-2">⚠️ Video Henüz Hazır Değil</h3>
+                    <p className="text-white/60 mb-2">
+                      Video Status: {videoData.status}
+                    </p>
+                    <p className="text-white/60 mb-4 text-sm">
+                      (Status 4 = Ready, Status 5 = Encoding)
+                    </p>
+                    {videoData.encodeProgress > 0 && (
+                      <div className="w-64 mx-auto mb-4">
+                        <div className="bg-white/10 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-primary h-full transition-all duration-300"
+                            style={{ width: `${videoData.encodeProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-white/60 text-sm mt-2">{videoData.encodeProgress}%</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="px-6 py-2 bg-primary hover:bg-primary/80 text-background-dark font-semibold rounded-lg transition-colors"
+                    >
+                      🔄 Yenile
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-white text-sm">
-                  <span>10:32</span>
-                  <div className="flex gap-4">
-                    <button className="hover:text-primary transition-colors">🔊</button>
-                    <button className="hover:text-primary transition-colors">⚙️</button>
-                    <button className="hover:text-primary transition-colors">HD</button>
-                    <button className="hover:text-primary transition-colors">⛶</button>
-                  </div>
-                  <span>{animeInfo.duration}</span>
-                </div>
-              </div>
+              )}
             </motion.div>
 
-            {/* Anime Info */}
+            {/* Debug Info */}
+            {import.meta.env.DEV && videoData && (
+              <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-yellow-400 text-sm font-mono">
+                  <strong>Debug:</strong><br/>
+                  Video ID: {videoId}<br/>
+                  Video GUID: {videoData.guid}<br/>
+                  CDN Hostname: {import.meta.env.VITE_BUNNY_CDN_HOSTNAME}<br/>
+                  Video URL: https://{import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/{videoData.guid || videoData.videoLibraryId}/playlist.m3u8<br/>
+                  <br/>
+                  <strong>Video Status:</strong><br/>
+                  Status: {videoData.status || 'Unknown'}<br/>
+                  Encoding Progress: {videoData.encodeProgress || 0}%<br/>
+                  Available Resolutions: {videoData.availableResolutions || 'None'}<br/>
+                  Has Thumbnail: {videoData.thumbnailFileName ? 'Yes' : 'No'}<br/>
+                  Video Length: {videoData.length ? `${Math.floor(videoData.length / 60)} min` : 'Unknown'}<br/>
+                  <br/>
+                  <strong>Player Status:</strong><br/>
+                  Video Element: {videoRef.current ? '✅ Mounted' : '❌ Not Mounted'}<br/>
+                  HLS Instance: {hlsRef.current ? '✅ Active' : '❌ Not Active'}<br/>
+                  <br/>
+                  {videoData.status !== 4 && videoData.status !== 5 ? (
+                    <span className="text-red-400">
+                      ⚠️ Video henüz hazır değil! Status: {videoData.status}<br/>
+                      (Status 4 = Ready, Status 5 = Encoding)<br/>
+                      Player başlatılmayacak!
+                    </span>
+                  ) : (
+                    <span className="text-green-400">
+                      ✅ Video hazır! Status: {videoData.status}<br/>
+                      Player başlatılmalı. Console'u kontrol edin!
+                    </span>
+                  )}
+                  <br/>
+                  <a 
+                    href={`https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${videoData.guid || videoData.videoLibraryId}/playlist.m3u8`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline"
+                  >
+                    → Test URL in New Tab
+                  </a>
+                </p>
+                
+                <div className="mt-4 pt-4 border-t border-yellow-500/30">
+                  <p className="text-yellow-400 text-xs">
+                    <strong>🔧 Video Yüklenmiyorsa Kontrol Listesi:</strong><br/>
+                    <br/>
+                    <strong>1. Console'u Kontrol Edin (F12):</strong><br/>
+                    • Network sekmesinde playlist.m3u8 isteğini bulun<br/>
+                    • Status: 200 OK ✅ veya 403/404 ❌?<br/>
+                    <br/>
+                    <strong>2. Bunny.net Dashboard Ayarları:</strong><br/>
+                    • Stream → Library → Security<br/>
+                    • Allowed Referrers: "localhost" ekleyin (veya boş bırakın)<br/>
+                    • Token Authentication: ❌ KAPALI<br/>
+                    • Block Direct Access: ❌ KAPALI<br/>
+                    • CORS: ✅ Allow All Origins<br/>
+                    <br/>
+                    <strong>3. Video Status:</strong><br/>
+                    • Status 4 veya 5 olmalı (yukarıda gösterildi)<br/>
+                    • Encoding bitene kadar bekleyin<br/>
+                    <br/>
+                    <strong>4. CDN Hostname:</strong><br/>
+                    • .env dosyasında doğru mu?<br/>
+                    • VITE_BUNNY_CDN_HOSTNAME=vz-xxxxx.b-cdn.net<br/>
+                    <br/>
+                    📚 Detaylı rehber: BUNNY_SETUP.md
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Video Info */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
               className="mt-6"
             >
-              <h1 className="text-4xl font-bold text-white mb-3">
-                {animeInfo.title}: Episode {animeInfo.episode}
-              </h1>
-              <div className="flex items-center gap-4 text-white/80 mb-4">
-                <div className="flex items-center gap-1">
-                  {[...Array(4)].map((_, i) => (
-                    <span key={i} className="text-primary">⭐</span>
-                  ))}
-                  <span className="text-primary/50">⭐</span>
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    {videoData.title}
+                  </h1>
+                  {anime && (
+                    <Link 
+                      to={`/anime/${anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                      className="text-primary hover:text-primary/80 font-semibold transition-colors"
+                    >
+                      ← {anime.name}
+                    </Link>
+                  )}
                 </div>
-                <span>{animeInfo.rating}</span>
-                <span>|</span>
-                <span>{animeInfo.duration}</span>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 mb-6">
-                <button className="flex items-center gap-2 px-6 py-3 bg-primary/20 hover:bg-primary text-primary hover:text-background-dark rounded-lg transition-all font-semibold">
-                  👍 Like
-                </button>
-                <button className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all font-semibold">
-                  ➕ Add to List
-                </button>
-                <button className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all font-semibold">
-                  🔗 Share
-                </button>
+              <div className="flex items-center gap-4 text-white/60 text-sm mb-6">
+                <span>⏱️ {Math.floor(videoData.length / 60)} dakika</span>
+                <span>👁️ {videoData.views || 0} görüntülenme</span>
+                <span>📅 {new Date(videoData.dateUploaded).toLocaleDateString('tr-TR')}</span>
               </div>
 
-              <p className="text-white/80 leading-relaxed mb-6">
-                {animeInfo.description}
-              </p>
-
-              {/* Language Selection */}
+              {/* Navigation Buttons */}
               <div className="flex gap-3">
-                <button className="px-6 py-2 bg-primary text-background-dark rounded-lg font-bold">
-                  ENG
-                </button>
-                <button className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-bold transition-colors">
-                  JP
-                </button>
+                {prevEpisode && (
+                  <button
+                    onClick={() => {
+                      const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                      navigate(`/watch/${slug}/${seasonNumber}/${currentEpisodeIndex}`)
+                    }}
+                    className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all font-semibold"
+                  >
+                    ← Önceki Bölüm
+                  </button>
+                )}
+                {nextEpisode && (
+                  <button
+                    onClick={() => {
+                      const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                      navigate(`/watch/${slug}/${seasonNumber}/${currentEpisodeIndex + 2}`)
+                    }}
+                    className="flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/80 text-background-dark rounded-lg transition-all font-semibold"
+                  >
+                    Sonraki Bölüm →
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -134,70 +451,77 @@ function Watch() {
           {/* Sidebar */}
           <div className="lg:col-span-1">
             {/* Next Episode */}
-            <div className="bg-white/5 rounded-xl p-4 mb-6">
-              <h2 className="text-white font-bold text-lg mb-4">Next Episode</h2>
-              <Link to={`/watch/${episodes[2].id}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors">
-                <img
-                  src={animeInfo.thumbnail}
-                  alt="Next episode"
-                  className="w-28 h-16 object-cover rounded-md"
-                />
-                <div className="flex-1">
-                  <p className="text-white font-semibold text-sm">{episodes[2].title}</p>
-                  <p className="text-white/60 text-xs">{episodes[2].duration}</p>
-                </div>
-                <span className="text-primary text-2xl">▶</span>
-              </Link>
-            </div>
+            {nextEpisode && (
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <h2 className="text-white font-bold text-lg mb-4">Sonraki Bölüm</h2>
+                <Link 
+                  to={`/watch/${anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/${seasonNumber}/${currentEpisodeIndex + 2}`} 
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  {nextEpisode.thumbnailFileName ? (
+                    <img
+                      src={`https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${nextEpisode.guid}/${nextEpisode.thumbnailFileName}`}
+                      alt={nextEpisode.title}
+                      className="w-28 h-16 object-cover rounded-md"
+                    />
+                  ) : (
+                    <div className="w-28 h-16 bg-black/50 rounded-md flex items-center justify-center">
+                      <span className="text-2xl">🎬</span>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-white font-semibold text-sm line-clamp-2">{nextEpisode.title}</p>
+                    <p className="text-white/60 text-xs">{Math.floor(nextEpisode.length / 60)} dk</p>
+                  </div>
+                  <span className="text-primary text-2xl">▶</span>
+                </Link>
+              </div>
+            )}
 
             {/* All Episodes */}
-            <div className="bg-white/5 rounded-xl p-4 mb-6">
-              <h2 className="text-white font-bold text-lg mb-4">All Episodes</h2>
-              <div className="space-y-2">
-                {episodes.map((ep) => (
-                  <Link
-                    key={ep.id}
-                    to={`/watch/${ep.id}`}
-                    className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                      ep.id === 7 ? 'bg-primary/10' : 'hover:bg-white/10'
-                    }`}
-                  >
-                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
-                      ep.watched ? 'border-primary text-primary' : 'border-white/20 text-white/60'
-                    }`}>
-                      ✓
-                    </div>
-                    <div className="flex-1">
-                      <p className={`font-semibold text-sm ${ep.id === 7 ? 'text-primary' : 'text-white'}`}>
-                        {ep.title}
-                      </p>
-                      <p className="text-white/60 text-xs">{ep.duration}</p>
-                    </div>
-                  </Link>
-                ))}
+            {allEpisodes.length > 0 && (
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <h2 className="text-white font-bold text-lg mb-4">Tüm Bölümler ({allEpisodes.length})</h2>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {allEpisodes.map((ep, index) => (
+                    <Link
+                      key={ep.guid}
+                      to={`/watch/${anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/${seasonNumber}/${index + 1}`}
+                      className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                        ep.guid === videoId ? 'bg-primary/10 border border-primary/30' : 'hover:bg-white/10'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
+                        ep.guid === videoId ? 'border-primary text-primary' : 'border-white/20 text-white/60'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm line-clamp-1 ${ep.guid === videoId ? 'text-primary' : 'text-white'}`}>
+                          {ep.title}
+                        </p>
+                        <p className="text-white/60 text-xs">{Math.floor(ep.length / 60)} dk</p>
+                      </div>
+                      {ep.guid === videoId && (
+                        <span className="text-primary text-sm">▶</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Recommended */}
-            <div className="bg-white/5 rounded-xl p-4">
-              <h2 className="text-white font-bold text-lg mb-4">Recommended</h2>
-              <div className="space-y-3">
-                {recommended.map((anime) => (
-                  <Link
-                    key={anime.id}
-                    to={`/watch/${anime.id}`}
-                    className="block"
-                  >
-                    <img
-                      src={anime.image}
-                      alt={anime.title}
-                      className="w-full h-40 object-cover rounded-lg hover:scale-105 transition-transform"
-                    />
-                    <p className="text-white font-semibold mt-2">{anime.title}</p>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            {/* Back to Anime */}
+            {anime && (
+              <Link
+                to={`/anime/${anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                className="block bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-colors"
+              >
+                <h2 className="text-white font-bold text-lg mb-2">Anime Sayfası</h2>
+                <p className="text-primary font-semibold">{anime.name}</p>
+                <p className="text-white/60 text-sm mt-1">Tüm bölümleri görüntüle →</p>
+              </Link>
+            )}
           </div>
         </div>
       </div>

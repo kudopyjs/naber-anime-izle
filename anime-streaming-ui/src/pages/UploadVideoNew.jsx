@@ -13,7 +13,7 @@ function UploadVideoNew() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
-  const [uploadMethod, setUploadMethod] = useState('url') // 'file' veya 'url'
+  const [uploadMethod, setUploadMethod] = useState('url') // 'file', 'url', veya 'download'
   
   // Anime listesi ve seçimi
   const [animeList, setAnimeList] = useState([])
@@ -161,6 +161,14 @@ function UploadVideoNew() {
     }
   }
 
+  // Helper: Collection ID al
+  const getCollectionId = async (animeName) => {
+    if (!animeName) return ''
+    const { getOrCreateCollection } = await import('../utils/bunnyUpload')
+    const result = await getOrCreateCollection(animeName)
+    return result.success ? result.collectionId : ''
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -206,8 +214,34 @@ function UploadVideoNew() {
         } else if (uploadMethod === 'url' && formData.videoUrl) {
           // URL'den aktar
           console.log('🔗 URL\'den aktarılıyor...')
+          
+          // Sibnet için backend'den çözümlenmiş URL al
+          let videoUrl = formData.videoUrl
+          if (videoUrl.includes('sibnet.ru')) {
+            console.log('  🔍 Sibnet URL\'si, backend\'den çözümleniyor...')
+            const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000'
+            
+            try {
+              const resolveResponse = await fetch(`${BACKEND_API_URL}/api/resolve-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_url: videoUrl })
+              })
+              
+              if (resolveResponse.ok) {
+                const resolveData = await resolveResponse.json()
+                if (resolveData.success && resolveData.resolved_url) {
+                  videoUrl = resolveData.resolved_url
+                  console.log('  ✅ URL çözümlendi:', videoUrl.substring(0, 80) + '...')
+                }
+              }
+            } catch (err) {
+              console.warn('  ⚠️ Backend\'e erişilemedi, orijinal URL kullanılacak')
+            }
+          }
+          
           const result = await uploadFromURL(
-            formData.videoUrl,
+            videoUrl,
             videoTitle,
             selectedAnime // Anime adı (collection)
           )
@@ -220,6 +254,41 @@ function UploadVideoNew() {
           bunnyEmbedUrl = result.embedUrl
           
           console.log(`✅ Video aktarıldı: ${bunnyVideoId}`)
+          console.log(`📁 Collection: ${result.collectionId || 'Ana dizin'}`)
+          
+        } else if (uploadMethod === 'download' && formData.videoUrl) {
+          // İndir ve yükle (Node.js backend)
+          console.log('📥 İndiriliyor ve yükleniyor...')
+          
+          const DOWNLOAD_API_URL = import.meta.env.VITE_DOWNLOAD_API_URL || 'http://localhost:5001'
+          
+          const response = await fetch(`${DOWNLOAD_API_URL}/api/download-upload`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              video_url: formData.videoUrl,
+              title: videoTitle,
+              collection_id: await getCollectionId(selectedAnime)
+            })
+          })
+          
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Video indirilemedi/yüklenemedi')
+          }
+          
+          const result = await response.json()
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Video indirilemedi/yüklenemedi')
+          }
+          
+          bunnyVideoId = result.videoId
+          bunnyEmbedUrl = result.embedUrl
+          
+          console.log(`✅ Video indirildi ve yüklendi: ${bunnyVideoId}`)
           console.log(`📁 Collection: ${result.collectionId || 'Ana dizin'}`)
         }
       }
@@ -372,34 +441,51 @@ function UploadVideoNew() {
             {/* Upload Method Selection */}
             <div>
               <label className="block text-white font-medium mb-3">Yükleme Yöntemi</label>
-              <div className="flex gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setUploadMethod('url')}
-                  className={`flex-1 px-6 py-4 rounded-lg font-semibold transition-all ${
+                  className={`px-4 py-4 rounded-lg font-semibold transition-all ${
                     uploadMethod === 'url' 
                       ? 'bg-primary text-white shadow-neon-cyan' 
                       : 'bg-white/10 text-white/60 hover:bg-white/20'
                   }`}
                 >
-                  🔗 URL'den Aktar
+                  <div className="text-2xl mb-1">🔗</div>
+                  <div className="text-sm">URL Aktar</div>
+                  <div className="text-xs opacity-60 mt-1">Hızlı</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMethod('download')}
+                  className={`px-4 py-4 rounded-lg font-semibold transition-all ${
+                    uploadMethod === 'download' 
+                      ? 'bg-primary text-white shadow-neon-cyan' 
+                      : 'bg-white/10 text-white/60 hover:bg-white/20'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">📥</div>
+                  <div className="text-sm">İndir & Yükle</div>
+                  <div className="text-xs opacity-60 mt-1">Önerilen</div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setUploadMethod('file')}
-                  className={`flex-1 px-6 py-4 rounded-lg font-semibold transition-all ${
+                  className={`px-4 py-4 rounded-lg font-semibold transition-all ${
                     uploadMethod === 'file' 
                       ? 'bg-primary text-white shadow-neon-cyan' 
                       : 'bg-white/10 text-white/60 hover:bg-white/20'
                   }`}
                 >
-                  📁 Dosya Yükle
+                  <div className="text-2xl mb-1">📁</div>
+                  <div className="text-sm">Dosya Yükle</div>
+                  <div className="text-xs opacity-60 mt-1">Lokal</div>
                 </button>
               </div>
             </div>
 
-            {/* Video URL Input (URL method only) */}
-            {uploadMethod === 'url' && (
+            {/* Video URL Input (URL and download methods) */}
+            {(uploadMethod === 'url' || uploadMethod === 'download') && (
               <div>
                 <label className="block text-white font-medium mb-2">Video URL *</label>
                 <input

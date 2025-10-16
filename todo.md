@@ -110,6 +110,17 @@ Prompt reference: *"Modern login and signup page for anime platform"*
 - [x] Add parallax or blur effect in hero banner
 - [x] Prepare placeholders for future API integration
 
+
+---
+
+Anime details sayfasında açıklama falan olan kısımın solunda animenin fotoğrafı olsun. Ve o fotoğrafın içinde en altta bir buton olsun ve Listeye Ekle yazsın butonda.
+
+---
+
+Eve dönünce kullanıcılara id verme, profil sayfalarını, liste yönetimini kontrol et.
+
+Eve dönünce r2'ye geç.
+
 ---
 
 ## 🚀 Phase 9 – Optimization & Deployment

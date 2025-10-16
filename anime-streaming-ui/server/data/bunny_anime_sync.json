@@ -1,0 +1,45 @@
+{
+  "success": true,
+  "animes": [
+    {
+      "name": "Kage no Jitsuryokusha ni Naritakute!",
+      "totalEpisodes": 1,
+      "totalSeasons": 1,
+      "seasons": [
+        {
+          "season": 1,
+          "collectionId": "17d4e445-c705-4dd6-a3cf-ea26bbfe6f32",
+          "collectionName": "Kage no Jitsuryokusha ni Naritakute! Season 1",
+          "episodeCount": 1
+        }
+      ]
+    },
+    {
+      "name": "Bleach: Thousand Year Blood War",
+      "totalEpisodes": 2,
+      "totalSeasons": 1,
+      "seasons": [
+        {
+          "season": 1,
+          "collectionId": "a5967c79-3d21-4cd3-ab9c-83aa690352f3",
+          "collectionName": "Bleach: Thousand Year Blood War",
+          "episodeCount": 2
+        }
+      ]
+    },
+    {
+      "name": "Naruto",
+      "totalEpisodes": 6,
+      "totalSeasons": 1,
+      "seasons": [
+        {
+          "season": 1,
+          "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+          "collectionName": "Naruto",
+          "episodeCount": 6
+        }
+      ]
+    }
+  ],
+  "total": 3
+}

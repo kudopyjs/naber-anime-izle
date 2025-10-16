@@ -51,10 +51,10 @@ function CategoryRow({ title, animes, genre = 'action' }) {
           <AnimeCard
             key={anime.id}
             id={anime.id}
-            title={anime.title}
+            title={anime.name || anime.title}
             rating={anime.rating}
-            image={anime.image}
-            genre={genre}
+            image={anime.coverImage || anime.image}
+            genre={anime.genres?.[0] || genre}
           />
         ))}
       </div>
