@@ -1,14 +1,3 @@
-"""
-TurkAnime'den Backblaze B2'ye Direkt Video Aktarma
-Bu script turkanime-indirici API'sini kullanarak videoları
-Backblaze B2'ye yükler ve HLS formatına çevirir.
-
-Kullanım:
-    python turkanime_to_b2.py --anime "naruto" --start 1 --end 10
-    python turkanime_to_b2.py --anime "one-piece" --all
-    python turkanime_to_b2.py --list  # Tüm animeleri listele
-"""
-
 import os
 import sys
 import argparse
@@ -145,19 +134,19 @@ class VideoEncoder:
             
             print("  🎬 Video encoding başlıyor...")
             
-            # Önce GPU encoding dene
-            print("  🎮 GPU encoding deneniyor (hevc_nvenc)...")
+            # Önce GPU encoding dene (H.264 - 2x daha hızlı!)
+            print("  🎮 GPU encoding deneniyor (h264_nvenc)...")
             cmd_gpu = [
                 'ffmpeg',
+                '-hwaccel', 'cuda',     # CUDA hızlandırma
                 '-i', input_path,
-                '-c:v', 'hevc_nvenc',   # GPU encoding (NVIDIA)
-                '-preset', 'p4',        # GPU preset (p1-p7, p4=balanced)
-                '-cq', '28',            # CQ (GPU için, CRF değil!)
+                '-c:v', 'h264_nvenc',   # H.264 (HEVC'den 2x hızlı)
+                '-preset', 'p4',        # GPU preset (p4=balanced)
+                '-cq', '23',            # CQ (daha iyi kalite)
                 '-rc', 'vbr',           # Variable bitrate
-                '-tag:v', 'hvc1',       # Apple uyumluluğu
                 '-c:a', 'aac',
                 '-b:a', '128k',
-                '-hls_time', '10',
+                '-hls_time', '4',       # 4 saniye (optimal)
                 '-hls_playlist_type', 'vod',
                 '-hls_segment_filename', segment_pattern,
                 playlist_path
@@ -175,17 +164,16 @@ class VideoEncoder:
                 print(f"  ⚠️ GPU encoding başarısız, CPU deneniyor...")
                 
                 # GPU başarısız, CPU encoding dene
-                print("  💻 CPU encoding başlıyor (libx265)...")
+                print("  💻 CPU encoding başlıyor (libx264)...")
                 cmd_cpu = [
                     'ffmpeg',
                     '-i', input_path,
-                    '-c:v', 'libx265',      # CPU encoding
-                    '-crf', '28',           # CRF (CPU için)
+                    '-c:v', 'libx264',      # H.264 (libx265'den hızlı)
+                    '-crf', '23',           # CRF (daha iyi kalite)
                     '-preset', 'fast',      # Hızlı preset
-                    '-tag:v', 'hvc1',       # Apple uyumluluğu
                     '-c:a', 'aac',
                     '-b:a', '128k',
-                    '-hls_time', '10',
+                    '-hls_time', '4',       # 4 saniye (optimal)
                     '-hls_playlist_type', 'vod',
                     '-hls_segment_filename', segment_pattern,
                     playlist_path
@@ -275,6 +263,71 @@ class TurkAnimeToB2:
         
         print(f"\nKullanım: python {sys.argv[0]} --anime SLUG --start 1 --end 10")
     
+    def transfer_from_json(self, json_file: str, season: int = 1):
+        """JSON dosyasından URL'leri okuyup B2'ye aktar"""
+        
+        print(f"\n📄 JSON dosyası okunuyor: {json_file}")
+        
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        anime_slug = data['anime']
+        anime_title = data['anime_title']
+        episodes = data['episodes']
+        
+        print(f"✅ Anime: {anime_title}")
+        print(f"📊 Toplam bölüm: {len(episodes)}")
+        print("=" * 60)
+        
+        collection_name = f"{anime_title} Season {season}"
+        self.stats["total"] = len(episodes)
+        
+        # Her bölümü işle
+        for ep_data in episodes:
+            ep_num = ep_data['episode']
+            title = ep_data['title']
+            video_url = ep_data['url']
+            
+            print(f"\n[{ep_num}/{len(episodes)}] {title}")
+            print("-" * 60)
+            
+            try:
+                # İki seviyeli klasör: "Anime Season X/Episode Y/"
+                episode_folder = f"Episode {ep_num}"
+                b2_prefix = f"{collection_name}/{episode_folder}"
+                
+                # B2'de zaten var mı kontrol et
+                if self.b2.file_exists(f"{b2_prefix}/playlist.m3u8"):
+                    print("⏭️  Video zaten B2'de var, atlanıyor...")
+                    self.stats["skipped"] += 1
+                    continue
+                
+                # Video'yu işle ve B2'ye yükle
+                result = self._process_and_upload(
+                    video_url=video_url,
+                    title=f"{anime_title} - {title}",
+                    b2_prefix=b2_prefix
+                )
+                
+                if result["success"]:
+                    print(f"✅ Başarıyla aktarıldı! Klasör: {b2_prefix}")
+                    self.stats["success"] += 1
+                    self._log_success(anime_slug, ep_num, title, b2_prefix)
+                else:
+                    print(f"❌ Aktarım başarısız: {result['error']}")
+                    self.stats["failed"] += 1
+                    self._log_error(anime_slug, ep_num, title, result["error"])
+                
+                time.sleep(2)
+                
+            except Exception as e:
+                print(f"❌ Hata: {e}")
+                self.stats["failed"] += 1
+                self._log_error(anime_slug, ep_num, title, str(e))
+                continue
+        
+        self._print_summary()
+    
     def transfer_anime(self, anime_slug: str, start_ep: int = 1, end_ep: int = None,
                       season: int = 1, fansub: str = None, quality_priority: bool = True):
         """Anime bölümlerini B2'ye aktar"""
@@ -311,9 +364,9 @@ class TurkAnimeToB2:
             print("-" * 60)
             
             try:
-                # Video ID oluştur
-                video_id = hashlib.md5(f"{anime_slug}-{i}".encode()).hexdigest()
-                b2_prefix = f"{collection_name}/{video_id}"
+                # İki seviyeli klasör: "Anime Season X/Episode Y/"
+                episode_folder = f"Episode {i}"
+                b2_prefix = f"{collection_name}/{episode_folder}"
                 
                 # B2'de zaten var mı kontrol et
                 if self.b2.file_exists(f"{b2_prefix}/playlist.m3u8"):
@@ -357,14 +410,13 @@ class TurkAnimeToB2:
                 result = self._process_and_upload(
                     video_url=video_url,
                     title=f"{anime.title} - {bolum.title}",
-                    video_id=video_id,
                     b2_prefix=b2_prefix
                 )
                 
                 if result["success"]:
-                    print(f"✅ Başarıyla aktarıldı! Video ID: {video_id}")
+                    print(f"✅ Başarıyla aktarıldı! Klasör: {b2_prefix}")
                     self.stats["success"] += 1
-                    self._log_success(anime_slug, i, bolum.title, video_id)
+                    self._log_success(anime_slug, i, bolum.title, b2_prefix)
                 else:
                     print(f"❌ Aktarım başarısız: {result['error']}")
                     self.stats["failed"] += 1
@@ -468,7 +520,7 @@ class TurkAnimeToB2:
             print(f"\n  ⚠️ requests indirme başarısız: {e}")
             return False
     
-    def _process_and_upload(self, video_url: str, title: str, video_id: str, b2_prefix: str) -> Dict:
+    def _process_and_upload(self, video_url: str, title: str, b2_prefix: str) -> Dict:
         """Video'yu indir, encode et ve B2'ye yükle"""
         
         # Temp dosyalar
@@ -478,18 +530,14 @@ class TurkAnimeToB2:
         temp_thumbnail = os.path.join(temp_dir, 'thumbnail.jpg')
         
         try:
-            # 1. Video'yu indir (aria2c → requests → yt-dlp)
+            # 1. Video'yu indir (aria2c → yt-dlp)
             print("  📥 Video indiriliyor...")
             
-            # Önce aria2c dene (en hızlı - 16x paralel)
+            # Önce aria2c dene (16x paralel - ÇOK HIZLI!)
             download_success = self._download_with_aria2c(video_url, temp_video)
             
             if not download_success:
-                # aria2c başarısız, requests dene
-                download_success = self._download_with_requests(video_url, temp_video)
-            
-            if not download_success:
-                # requests de başarısız, yt-dlp kullan (en yavaş)
+                # aria2c başarısız, yt-dlp kullan
                 print("  📥 yt-dlp ile indiriliyor...")
                 
                 # Progress callback
@@ -508,15 +556,20 @@ class TurkAnimeToB2:
                 ydl_opts = {
                     'outtmpl': temp_video,
                     'format': 'best',
-                    'quiet': False,  # Progress göstermek için
+                    'quiet': False,
                     'no_warnings': True,
                     'progress_hooks': [progress_hook],
-                    # Hız optimizasyonları
-                    'concurrent_fragment_downloads': 5,  # Paralel parça indirme
-                    'http_chunk_size': 10485760,  # 10MB chunk (daha büyük buffer)
+                    # Hız optimizasyonları (agresif!)
+                    'concurrent_fragment_downloads': 16,  # 16 paralel
+                    'http_chunk_size': 52428800,  # 50MB chunk
+                    'buffersize': 52428800,  # 50MB buffer
                     'retries': 10,
                     'fragment_retries': 10,
-                    'socket_timeout': 30,
+                    'socket_timeout': 60,
+                    'http_headers': {
+                        'Connection': 'keep-alive',
+                        'Accept-Encoding': 'gzip, deflate',
+                    },
                 }
                 
                 with YoutubeDL(ydl_opts) as ydl:
@@ -544,7 +597,7 @@ class TurkAnimeToB2:
             
             # Metadata oluştur ve yükle
             metadata = {
-                "videoId": video_id,
+                "path": b2_prefix,
                 "title": title,
                 "uploadDate": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "playlistUrl": f"{CDN_URL}/{b2_prefix}/playlist.m3u8",
@@ -561,7 +614,7 @@ class TurkAnimeToB2:
             
             return {
                 "success": True,
-                "video_id": video_id,
+                "path": b2_prefix,
                 "files_uploaded": len(hls_results)
             }
             
@@ -625,10 +678,14 @@ def main():
   
   # Belirli fansub seç
   python turkanime_to_b2.py --anime naruto --start 1 --end 10 --fansub "TurkAnime"
+  
+  # JSON dosyasından aktar (EN PRATİK!)
+  python turkanime_to_b2.py --json video_urls.json
         """
     )
     
     parser.add_argument("--list", action="store_true", help="Tüm animeleri listele")
+    parser.add_argument("--json", type=str, help="JSON dosyasından URL'leri oku (EN PRATİK!)")
     parser.add_argument("--anime", type=str, help="Anime slug (örn: naruto)")
     parser.add_argument("--start", type=int, default=1, help="Başlangıç bölümü")
     parser.add_argument("--end", type=int, help="Bitiş bölümü")
@@ -643,6 +700,9 @@ def main():
     
     if args.list:
         transfer.list_all_anime()
+    elif args.json:
+        # JSON dosyasından aktar (EN PRATİK!)
+        transfer.transfer_from_json(args.json, season=args.season)
     elif args.anime:
         transfer.transfer_anime(
             anime_slug=args.anime,

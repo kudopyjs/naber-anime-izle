@@ -97,7 +97,10 @@ function runPythonScript(scriptPath, args = []) {
     console.log(command);
     console.log('─'.repeat(80));
     
-    const python = spawn('python', [scriptPath, ...args]);
+    // Python encoding environment variable
+    const env = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+    
+    const python = spawn('python', [scriptPath, ...args], { env });
     
     let stdout = '';
     let stderr = '';
@@ -189,7 +192,7 @@ app.get('/api/turkanime/anime/:slug', async (req, res) => {
  */
 app.post('/api/turkanime/import-episode', async (req, res) => {
   try {
-    const { animeSlug, episodeSlug, uploadedBy } = req.body;
+    const { animeSlug, episodeSlug, uploadedBy, fansub } = req.body;
     
     if (!animeSlug || !episodeSlug) {
       return res.status(400).json({ error: 'animeSlug and episodeSlug are required' });
@@ -199,23 +202,41 @@ app.post('/api/turkanime/import-episode', async (req, res) => {
     console.log('  Anime:', animeSlug);
     console.log('  Episode:', episodeSlug);
     console.log('  Uploaded By:', uploadedBy || 'admin');
+    console.log('  Fansub:', fansub || uploadedBy || 'admin');
     
-    // Python helper script'ini çağır
+    // Hemen yanıt ver (async olarak çalışacak)
+    res.json({
+      success: true,
+      message: 'Import başlatıldı, arka planda çalışıyor...',
+      status: 'processing'
+    });
+    
+    // Python script'ini arka planda çalıştır
     const scriptPath = path.join(__dirname, 'turkanime-helpers', 'import_episode.py');
-    const result = await runPythonScript(scriptPath, [animeSlug, episodeSlug, uploadedBy || 'admin']);
+    const scriptArgs = [animeSlug, episodeSlug, uploadedBy || 'admin'];
     
-    console.log('✅ Import completed:', result.success ? 'SUCCESS' : 'FAILED');
-    if (result.videoId) {
-      console.log('  Video ID:', result.videoId);
-    }
-    if (!result.success && result.error) {
-      console.log('  ❌ Error:', result.error);
-      if (result.detail) {
-        console.log('  📋 Detail:', result.detail);
-      }
+    // Fansub parametresi varsa ekle
+    if (fansub) {
+      scriptArgs.push(fansub);
     }
     
-    res.json(result);
+    runPythonScript(scriptPath, scriptArgs)
+      .then(result => {
+        console.log('✅ Import completed:', result.success ? 'SUCCESS' : 'FAILED');
+        if (result.videoId) {
+          console.log('  Video ID:', result.videoId);
+        }
+        if (!result.success && result.error) {
+          console.log('  ❌ Error:', result.error);
+          if (result.detail) {
+            console.log('  📋 Detail:', result.detail);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('❌ Import failed:', error.message);
+      });
+    
   } catch (error) {
     console.error('Import episode error:', error);
     console.error('Error stack:', error.stack);

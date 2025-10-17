@@ -407,6 +407,98 @@ def upload_from_file():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/download-upload', methods=['POST'])
+def download_and_upload():
+    """Video'yu indir ve Bunny'e yükle (frontend için)"""
+    try:
+        data = request.get_json()
+        
+        video_url = data.get('video_url')
+        title = data.get('title')
+        collection_id = data.get('collection_id', '')
+        library_id = data.get('library_id', BUNNY_LIBRARY_ID)
+        api_key = data.get('api_key', BUNNY_API_KEY)
+        
+        if not video_url or not title:
+            return jsonify({'error': 'video_url ve title gerekli'}), 400
+        
+        if not bunny:
+            return jsonify({'error': 'Bunny.net API yapılandırılmamış'}), 500
+        
+        print(f"📥 Video indiriliyor: {video_url[:80]}...")
+        print(f"📝 Başlık: {title}")
+        print(f"📁 Collection ID: {collection_id or 'Yok'}")
+        
+        # yt-dlp ile videoyu indir
+        import tempfile
+        import os
+        
+        temp_dir = os.path.join(os.path.dirname(__file__), 'temp_downloads')
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        temp_file = os.path.join(temp_dir, f"temp_{int(time.time())}.mp4")
+        
+        from yt_dlp import YoutubeDL
+        
+        ydl_opts = {
+            'quiet': False,
+            'no_warnings': False,
+            'outtmpl': temp_file,
+            'format': 'best',
+        }
+        
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+            
+            print(f"✅ Video indirildi: {temp_file}")
+            print(f"📤 Bunny.net'e yükleniyor...")
+            
+            # Dosyadan yükle
+            result = bunny.upload_file_direct(
+                file_path=temp_file,
+                title=title,
+                collection_id=collection_id
+            )
+            
+            # Geçici dosyayı sil
+            try:
+                os.remove(temp_file)
+                print(f"🗑️ Geçici dosya silindi")
+            except:
+                pass
+            
+            if result['success']:
+                return jsonify({
+                    'success': True,
+                    'videoId': result['video_id'],
+                    'collectionId': collection_id,
+                    'embedUrl': f"https://iframe.mediadelivery.net/embed/{library_id}/{result['video_id']}"
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('error', 'Upload başarısız')
+                }), 500
+                
+        except Exception as e:
+            print(f"❌ İndirme/yükleme hatası: {e}")
+            # Geçici dosyayı sil
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
+            
+            return jsonify({
+                'success': False,
+                'error': f'Video indirilemedi: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/upload/history', methods=['GET'])
 def get_upload_history():
     """Upload geçmişini getir"""

@@ -220,6 +220,55 @@ export async function moveToCollection(videoId, collectionId) {
 }
 
 /**
+ * Download & Upload fallback (fetch başarısız olursa)
+ */
+async function uploadViaDownload(videoUrl, title, collectionId = '') {
+  try {
+    console.log('📥 Backend ile indiriliyor ve yükleniyor...')
+    
+    const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:5000'
+    
+    const response = await fetch(`${BACKEND_API_URL}/api/download-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        video_url: videoUrl,
+        title: title,
+        collection_id: collectionId,
+        library_id: LIBRARY_ID,
+        api_key: BUNNY_API_KEY
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Download & upload başarısız')
+    }
+    
+    const data = await response.json()
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Download & upload başarısız')
+    }
+    
+    console.log('✅ Backend ile yüklendi:', data.videoId)
+    
+    return {
+      success: true,
+      videoId: data.videoId,
+      collectionId: collectionId,
+      embedUrl: `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${data.videoId}`,
+      data: data
+    }
+  } catch (error) {
+    console.error('❌ Download & upload hatası:', error)
+    throw error
+  }
+}
+
+/**
  * Başka bir URL'den video aktar (geliştirilmiş + URL çözümleme)
  */
 export async function uploadFromURL(videoUrl, title, animeName = null, collectionId = '') {
@@ -276,15 +325,56 @@ export async function uploadFromURL(videoUrl, title, animeName = null, collectio
     
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ Bunny.net error response:', errorText)
-      throw new Error(`Upload failed (${response.status}): ${errorText}`)
+      console.error('❌ Bunny.net fetch başarısız:', errorText)
+      console.error('❌ Request details:')
+      console.error('   URL:', resolvedUrl.substring(0, 100))
+      console.error('   Title:', title)
+      console.error('   Collection ID:', collectionId || 'Yok')
+      
+      // 403/400 hatası alırsak, download & upload metodunu dene
+      if (response.status === 403 || response.status === 400) {
+        console.log('⚠️ Fetch başarısız, download & upload deneniyor...')
+        return await uploadViaDownload(resolvedUrl, title, collectionId)
+      }
+      
+      throw new Error(`Bunny.net upload failed (${response.status}): ${errorText}`)
     }
     
     const data = await response.json()
-    console.log('📦 Bunny.net response data:', data)
+    console.log('📦 Bunny.net response data:', JSON.stringify(data, null, 2))
     
-    const videoId = data.id || data.guid
+    // Bunny fetch API farklı field'lar döndürebilir
+    const videoId = data.guid || data.id || data.videoId || data.videoLibraryId
     console.log('🎬 Video ID:', videoId || 'YOK!')
+    
+    if (!videoId) {
+      console.error('❌ Video ID alınamadı!')
+      console.error('Response keys:', Object.keys(data))
+      console.error('Full response:', data)
+      
+      // Eğer success:true dönmüşse ama ID yoksa, bekle ve listeden bul
+      if (data.success === true || response.status === 200) {
+        console.log('⏳ Video ID bulunamadı, 5 saniye bekleniyor...')
+        await new Promise(resolve => setTimeout(resolve, 5000))
+        
+        // Son yüklenen videoyu bul
+        console.log('🔍 Son yüklenen video aranıyor...')
+        const videos = await listVideos(1, 10)
+        if (videos && videos.items && videos.items.length > 0) {
+          const latestVideo = videos.items[0]
+          console.log('✅ Son video bulundu:', latestVideo.guid)
+          return {
+            success: true,
+            videoId: latestVideo.guid,
+            collectionId: collectionId,
+            embedUrl: `https://iframe.mediadelivery.net/embed/${LIBRARY_ID}/${latestVideo.guid}`,
+            data: latestVideo
+          }
+        }
+      }
+      
+      throw new Error('Video ID alınamadı ve video listesinde bulunamadı')
+    }
     
     // Collection'a eklenmemişse manuel olarak taşı
     if (collectionId && videoId) {

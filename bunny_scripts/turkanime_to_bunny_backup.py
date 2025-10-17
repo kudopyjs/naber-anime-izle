@@ -9,6 +9,18 @@ Kullanım:
     python turkanime_to_bunny.py --list  # Tüm animeleri listele
 """
 
+"""
+TurkAnime'den Backblaze B2'ye Direkt Video Aktarma
+Bu script turkanime-indirici API'sini kullanarak videoları
+Backblaze B2'ye yükler ve HLS formatına çevirir.
+
+Kullanım:
+    python turkanime_to_b2.py --anime "naruto" --start 1 --end 10
+    python turkanime_to_b2.py --anime "one-piece" --all
+    python turkanime_to_b2.py --list  # Tüm animeleri listele
+"""
+
+
 import os
 import sys
 import argparse

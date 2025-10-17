@@ -240,6 +240,11 @@ function UploadVideoNew() {
             }
           }
           
+          console.log('📤 Bunny.net\'e gönderiliyor...')
+          console.log('   Video URL:', videoUrl.substring(0, 80))
+          console.log('   Title:', videoTitle)
+          console.log('   Anime:', selectedAnime)
+          
           const result = await uploadFromURL(
             videoUrl,
             videoTitle,
@@ -247,6 +252,7 @@ function UploadVideoNew() {
           )
 
           if (!result.success) {
+            console.error('❌ Upload başarısız:', result.error)
             throw new Error(result.error || 'Video aktarılamadı')
           }
 
@@ -255,6 +261,7 @@ function UploadVideoNew() {
           
           console.log(`✅ Video aktarıldı: ${bunnyVideoId}`)
           console.log(`📁 Collection: ${result.collectionId || 'Ana dizin'}`)
+          console.log(`🔗 Embed URL: ${bunnyEmbedUrl}`)
           
         } else if (uploadMethod === 'download' && formData.videoUrl) {
           // İndir ve yükle (Node.js backend)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Bunny.net Collection Videoları
 Belirli bir collection'ın tüm videolarını getirir
@@ -48,10 +49,6 @@ try:
             }
     
     if __name__ == '__main__':
-        # Windows encoding fix
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-        
         if len(sys.argv) < 2:
             print(json.dumps({"error": "collection_id required", "success": False}))
             sys.exit(1)

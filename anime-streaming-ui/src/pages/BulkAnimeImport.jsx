@@ -13,6 +13,7 @@ function BulkAnimeImport() {
   const [episodes, setEpisodes] = useState([])
   const [selectedEpisodes, setSelectedEpisodes] = useState([])
   const [importStatus, setImportStatus] = useState({})
+  const [selectedFansub, setSelectedFansub] = useState('')
 
   // TürkAnime API'sinden anime listesi çek
   const searchAnime = async () => {
@@ -127,7 +128,8 @@ function BulkAnimeImport() {
           body: JSON.stringify({
             animeSlug: selectedAnime,
             episodeSlug: episodeSlug,
-            uploadedBy: user.username
+            uploadedBy: user.username,
+            fansub: selectedFansub || user.username
           })
         })
 
@@ -253,6 +255,23 @@ function BulkAnimeImport() {
                     <div className="text-white/80 mb-4">📺 {animeDetails.episodeCount} Bölüm</div>
                     <p className="text-white/60 text-sm">{animeDetails.summary}</p>
                   </div>
+                </div>
+
+                {/* Fansub Seçimi */}
+                <div className="bg-black/30 rounded-lg p-4 mb-4">
+                  <label className="block text-white font-semibold mb-2">
+                    📝 Fansub / Çevirmen
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedFansub}
+                    onChange={(e) => setSelectedFansub(e.target.value)}
+                    placeholder={`Varsayılan: ${user.username}`}
+                    className="w-full px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary"
+                  />
+                  <p className="text-white/50 text-sm mt-2">
+                    Boş bırakılırsa kullanıcı adınız ({user.username}) kullanılacak
+                  </p>
                 </div>
 
                 {/* Bölüm Seçimi */}

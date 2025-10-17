@@ -11,10 +11,16 @@ import subprocess
 import re
 from datetime import datetime
 
-def import_episode(anime_slug, episode_slug, uploaded_by='admin'):
+def import_episode(anime_slug, episode_slug, uploaded_by='admin', fansub=None):
     """
     Bölümü TürkAnime'den çekip Bunny CDN'e yükle
     turkanime_to_bunny.py'yi direkt çağırır
+    
+    Args:
+        anime_slug: Anime slug (örn: naruto)
+        episode_slug: Bölüm slug (örn: naruto-5-bolum)
+        uploaded_by: Yükleyen kullanıcı
+        fansub: Fansub/Çevirmen adı (opsiyonel)
     """
     try:
         # Bölüm numarasını çıkar (örn: naruto-5-bolum -> 5)
@@ -107,6 +113,7 @@ def import_episode(anime_slug, episode_slug, uploaded_by='admin'):
                     'title': anime_slug.replace('-', ' ').title(),
                     'episode': episode_num,
                     'uploadedBy': uploaded_by,
+                    'fansub': fansub or uploaded_by,
                     'uploadedAt': datetime.now().isoformat(),
                     'source': 'turkanime',
                     'sourceSlug': episode_slug
@@ -142,9 +149,10 @@ if __name__ == '__main__':
     anime_slug = sys.argv[1]
     episode_slug = sys.argv[2]
     uploaded_by = sys.argv[3] if len(sys.argv) > 3 else 'admin'
+    fansub = sys.argv[4] if len(sys.argv) > 4 else None
     
     try:
-        result = import_episode(anime_slug, episode_slug, uploaded_by)
+        result = import_episode(anime_slug, episode_slug, uploaded_by, fansub)
         print(json.dumps(result, ensure_ascii=False))
     except Exception as e:
         import traceback

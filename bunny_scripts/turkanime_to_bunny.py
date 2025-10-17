@@ -11,6 +11,13 @@ Kullanım:
 
 import os
 import sys
+import io
+
+# Windows encoding fix
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import argparse
 import requests
 from pathlib import Path
@@ -175,6 +182,11 @@ class BunnyUploader:
                 # Debug: Tüm response'u göster
                 print(f"  🔍 Full Response: {data}")
                 
+                # Fetch başarısız oldu mu kontrol et
+                if data.get("success") == False and ("403" in str(data.get("statusCode")) or "400" in str(data.get("statusCode"))):
+                    print(f"  ⚠️ Fetch başarısız (403/400), download & upload deneniyor...")
+                    return self._download_and_upload(direct_url, title, collection_id)
+                
                 # Bunny.net fetch API'si farklı field'lar kullanıyor olabilir
                 video_id = data.get("guid") or data.get("videoLibraryId") or data.get("id")
                 
@@ -191,6 +203,10 @@ class BunnyUploader:
                                 "success": False,
                                 "error": "Video ID alınamadı (timeout)"
                             }
+                    else:
+                        # Fetch başarısız, download & upload dene
+                        print(f"  ⚠️ Video ID bulunamadı, download & upload deneniyor...")
+                        return self._download_and_upload(direct_url, title, collection_id)
                 else:
                     print(f"  ✅ Video ID: {video_id}")
                 
@@ -218,6 +234,53 @@ class BunnyUploader:
                     "error": f"HTTP {response.status_code}: {response.text}"
                 }
         except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _download_and_upload(self, video_url: str, title: str, collection_id: str = None) -> Dict:
+        """Fetch başarısız olursa: İndir ve yükle"""
+        try:
+            print(f"  📥 Video indiriliyor (yt-dlp)...")
+            
+            # Temp dosya
+            temp_dir = tempfile.mkdtemp(prefix='bunny_upload_')
+            temp_file = os.path.join(temp_dir, 'video.mp4')
+            
+            # yt-dlp ile indir (1080p tercih, yoksa en iyi kalite)
+            ydl_opts = {
+                'outtmpl': temp_file,
+                'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
+                'quiet': False,
+                'concurrent_fragment_downloads': 4,  # 4 parça paralel indir
+            }
+            
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+            
+            file_size = os.path.getsize(temp_file)
+            print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
+            
+            # Bunny'e yükle
+            print(f"  📤 Bunny.net'e yükleniyor...")
+            result = self.upload_file_direct(
+                file_path=temp_file,
+                title=title,
+                collection_id=collection_id
+            )
+            
+            # Cleanup
+            try:
+                import shutil
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+            
+            return result
+            
+        except Exception as e:
+            print(f"  ❌ Download & upload hatası: {e}")
             return {
                 "success": False,
                 "error": str(e)

@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Watch from './pages/Watch'
+import WatchB2 from './pages/WatchB2'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import UploadVideoNew from './pages/UploadVideoNew'
@@ -28,6 +29,7 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route path="/watch-b2/:animeSlug/:seasonNumber/:episodeNumber" element={<WatchB2 />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route 
