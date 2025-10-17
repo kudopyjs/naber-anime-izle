@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import API_BASE_URL from '../config/api'
 
 function BunnySync() {
   const navigate = useNavigate()
@@ -36,7 +37,7 @@ function BunnySync() {
     setResult(null)
 
     try {
-      const response = await fetch('http://localhost:5002/api/bunny/sync', {
+      const response = await fetch(`${API_BASE_URL}/bunny/sync`, {
         method: 'POST'
       })
 

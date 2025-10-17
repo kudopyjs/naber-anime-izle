@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import API_BASE_URL from '../config/api'
 
 function AddAnime() {
   const navigate = useNavigate()
@@ -35,7 +36,7 @@ function AddAnime() {
 
   const loadCollections = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/bunny/collections')
+      const response = await fetch(`${API_BASE_URL}/bunny/collections`)
       const data = await response.json()
       
       if (data.success) {
@@ -89,7 +90,7 @@ function AddAnime() {
       formData.append('cover', coverFile)
       formData.append('animeName', animeData.name) // Anime adını gönder
 
-      const response = await fetch('http://localhost:5002/api/anime/upload-cover', {
+      const response = await fetch(`${API_BASE_URL}/anime/upload-cover`, {
         method: 'POST',
         body: formData
       })
@@ -123,7 +124,7 @@ function AddAnime() {
       }
 
       // Anime metadata'sını kaydet (collection oluşturmaz)
-      const response = await fetch('http://localhost:5002/api/anime/create', {
+      const response = await fetch(`${API_BASE_URL}/anime/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -192,7 +193,7 @@ function AddAnime() {
       // 500ms bekle (kullanıcı yazmayı bitirsin)
       await new Promise(resolve => setTimeout(resolve, 500))
       
-      const response = await fetch('http://localhost:5002/api/anime/list')
+      const response = await fetch(`${API_BASE_URL}/anime/list`)
       const data = await response.json()
       
       if (data.success) {

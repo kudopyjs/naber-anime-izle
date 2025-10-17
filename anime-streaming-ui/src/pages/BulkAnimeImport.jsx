@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import API_BASE_URL from '../config/api'
 
 function BulkAnimeImport() {
   const { user } = useAuth()
@@ -23,7 +24,7 @@ function BulkAnimeImport() {
     try {
       // Simüle edilmiş API çağrısı - gerçek implementasyonda backend'e istek atılacak
       // Backend, turkanime-indirici'deki get_anime_listesi metodunu kullanacak
-      const response = await fetch(`http://localhost:5002/api/turkanime/search?q=${encodeURIComponent(searchQuery)}`)
+      const response = await fetch(`${API_BASE_URL}/turkanime/search?q=${encodeURIComponent(searchQuery)}`)
       const data = await response.json()
       setSearchResults(data.results || [])
     } catch (error) {
@@ -49,7 +50,7 @@ function BulkAnimeImport() {
 
     try {
       // Backend'den anime detaylarını çek
-      const response = await fetch(`http://localhost:5002/api/turkanime/anime/${slug}`)
+      const response = await fetch(`${API_BASE_URL}/turkanime/anime/${slug}`)
       const data = await response.json()
       
       setAnimeDetails(data.info)
@@ -122,7 +123,7 @@ function BulkAnimeImport() {
         }))
 
         // Backend'e bölüm import isteği gönder
-        const response = await fetch('http://localhost:5002/api/turkanime/import-episode', {
+        const response = await fetch(`${API_BASE_URL}/turkanime/import-episode`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

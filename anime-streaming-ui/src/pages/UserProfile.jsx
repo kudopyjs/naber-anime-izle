@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import API_BASE_URL from '../config/api'
 
 function UserProfile() {
   const { userId } = useParams()
@@ -27,7 +28,7 @@ function UserProfile() {
 
     try {
       // Kullanıcı bilgilerini yükle
-      const userResponse = await fetch(`http://localhost:5002/api/user/${userId}`)
+      const userResponse = await fetch(`${API_BASE_URL}/user/${userId}`)
       const userData = await userResponse.json()
 
       if (!userData.success) {
@@ -38,7 +39,7 @@ function UserProfile() {
 
       // Listeleri yükle
       const listsResponse = await fetch(
-        `http://localhost:5002/api/user/${userId}/lists?viewerId=${currentUser?.id || ''}`
+        `${API_BASE_URL}/user/${userId}/lists?viewerId=${currentUser?.id || ''}`
       )
       const listsData = await listsResponse.json()
 
@@ -60,7 +61,7 @@ function UserProfile() {
     if (!confirm('Bu anime listeden kaldırılsın mı?')) return
 
     try {
-      const response = await fetch(`http://localhost:5002/api/list/${listId}/remove-anime/${animeSlug}`, {
+      const response = await fetch(`${API_BASE_URL}/list/${listId}/remove-anime/${animeSlug}`, {
         method: 'DELETE'
       })
 

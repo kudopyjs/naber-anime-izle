@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import API_BASE_URL from '../config/api'
 
 function EditAnime() {
   const { animeSlug } = useParams()
@@ -36,7 +37,7 @@ function EditAnime() {
   const loadAnimeData = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:5002/api/anime/list')
+      const response = await fetch(`${API_BASE_URL}/anime/list`)
       const data = await response.json()
       
       console.log('📊 All animes:', data.animes)
@@ -102,7 +103,7 @@ function EditAnime() {
         animeName: animeName
       })
 
-      const response = await fetch('http://localhost:5002/api/anime/upload-cover', {
+      const response = await fetch(`${API_BASE_URL}/anime/upload-cover`, {
         method: 'POST',
         body: uploadFormData
       })
@@ -164,7 +165,7 @@ function EditAnime() {
         }
       }
 
-      const response = await fetch('http://localhost:5002/api/anime/update', {
+      const response = await fetch(`${API_BASE_URL}/anime/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

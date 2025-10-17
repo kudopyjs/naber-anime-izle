@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import AddToListModal from '../components/AddToListModal'
+import API_BASE_URL from '../config/api'
 
 function AnimeDetail() {
   const { animeSlug } = useParams()
@@ -28,11 +29,11 @@ function AnimeDetail() {
     
     try {
       // 1. Anime metadata'sını anime.json'dan al
-      const animeListResponse = await fetch('http://localhost:5002/api/anime/list')
+      const animeListResponse = await fetch(`${API_BASE_URL}/anime/list`)
       const animeListData = await animeListResponse.json()
       
       // 2. Bunny sync data'dan sezon bilgilerini al
-      const syncResponse = await fetch('http://localhost:5002/api/bunny/sync-data')
+      const syncResponse = await fetch(`${API_BASE_URL}/bunny/sync-data`)
       const syncData = await syncResponse.json()
       
       if (animeListData.success && syncData.success) {
@@ -93,7 +94,7 @@ function AnimeDetail() {
     setSelectedSeason(season)
     
     try {
-      const videosResponse = await fetch(`http://localhost:5002/api/bunny/collection/${season.collectionId}/videos`)
+      const videosResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
       const videosData = await videosResponse.json()
       
       if (videosData.success) {

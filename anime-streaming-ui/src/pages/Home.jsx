@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import CategoryRow from '../components/CategoryRow'
 import ContinueWatching from '../components/ContinueWatching'
+import API_BASE_URL from '../config/api'
 
 function Home() {
   const [animes, setAnimes] = useState([])
@@ -23,7 +24,7 @@ function Home() {
   const loadData = async () => {
     try {
       // Sadece anime listesini yükle (collections'a ihtiyaç yok)
-      const animesResponse = await fetch('http://localhost:5002/api/anime/list')
+      const animesResponse = await fetch(`${API_BASE_URL}/anime/list`)
       const animesData = await animesResponse.json()
 
       if (animesData.success) {

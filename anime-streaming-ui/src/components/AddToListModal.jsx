@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import API_BASE_URL from '../config/api'
 
 function AddToListModal({ isOpen, onClose, anime }) {
   const { user } = useAuth()
@@ -21,7 +22,7 @@ function AddToListModal({ isOpen, onClose, anime }) {
   const loadUserLists = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5002/api/user/${user.id}/lists?viewerId=${user.id}`)
+      const response = await fetch(`${API_BASE_URL}/user/${user.id}/lists?viewerId=${user.id}`)
       const data = await response.json()
       if (data.success) {
         setLists(data.lists)
@@ -37,7 +38,7 @@ function AddToListModal({ isOpen, onClose, anime }) {
     try {
       const animeSlug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
       
-      const response = await fetch(`http://localhost:5002/api/list/${listId}/add-anime`, {
+      const response = await fetch(`${API_BASE_URL}/list/${listId}/add-anime`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,7 +64,7 @@ function AddToListModal({ isOpen, onClose, anime }) {
     setCreating(true)
 
     try {
-      const response = await fetch('http://localhost:5002/api/list/create', {
+      const response = await fetch(`${API_BASE_URL}/list/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

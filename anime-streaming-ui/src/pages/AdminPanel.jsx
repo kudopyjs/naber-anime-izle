@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import BulkAnimeImport from './BulkAnimeImport'
+import API_BASE_URL from '../config/api'
 
 function AdminPanel() {
   const navigate = useNavigate()
@@ -61,7 +62,7 @@ function AdminPanel() {
   const loadAnimes = async () => {
     setLoadingAnimes(true)
     try {
-      const response = await fetch('http://localhost:5002/api/anime/list')
+      const response = await fetch(`${API_BASE_URL}/anime/list`)
       const data = await response.json()
       
       if (data.success) {
@@ -79,7 +80,7 @@ function AdminPanel() {
   const loadBunnyCollections = async () => {
     setLoadingCollections(true)
     try {
-      const response = await fetch('http://localhost:5002/api/bunny/collections')
+      const response = await fetch(`${API_BASE_URL}/bunny/collections`)
       const data = await response.json()
       
       if (data.success) {
@@ -110,7 +111,7 @@ function AdminPanel() {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/user/create', {
+      const response = await fetch(`${API_BASE_URL}/user/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

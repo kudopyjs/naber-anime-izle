@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import API_BASE_URL from '../config/api'
 
 const AuthContext = createContext(null)
 
@@ -97,7 +98,7 @@ export const AuthProvider = ({ children }) => {
         
         // Backend'de user oluştur ve otomatik "Daha Sonra İzle" listesi ekle
         try {
-          await fetch('http://localhost:5002/api/user/create', {
+          await fetch(`${API_BASE_URL}/user/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Hls from 'hls.js'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import API_BASE_URL from '../config/api'
 
 function Watch() {
   const { animeSlug, seasonNumber, episodeNumber } = useParams()
@@ -63,7 +64,7 @@ function Watch() {
       console.log('🔍 Loading video:', { animeSlug, seasonNumber, episodeNumber })
       
       // Bunny sync data'dan anime ve sezon bilgisini bul
-      const syncResponse = await fetch('http://localhost:5002/api/bunny/sync-data')
+      const syncResponse = await fetch(`${API_BASE_URL}/bunny/sync-data`)
       const syncData = await syncResponse.json()
       
       if (!syncData.success) {
@@ -91,7 +92,7 @@ function Watch() {
       console.log('✅ Found season:', season.season, season.collectionName)
       
       // Collection'daki tüm videoları çek
-      const episodesResponse = await fetch(`http://localhost:5002/api/bunny/collection/${season.collectionId}/videos`)
+      const episodesResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
       const episodesData = await episodesResponse.json()
       
       if (!episodesData.success) {
