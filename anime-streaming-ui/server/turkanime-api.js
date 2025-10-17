@@ -100,7 +100,7 @@ function runPythonScript(scriptPath, args = []) {
     // Python encoding environment variable
     const env = { ...process.env, PYTHONIOENCODING: 'utf-8' };
     
-    const python = spawn('python', [scriptPath, ...args], { env });
+    const python = spawn('python3', [scriptPath, ...args], { env });
     
     let stdout = '';
     let stderr = '';
@@ -463,7 +463,7 @@ app.post('/api/anime/upload-cover', upload.single('cover'), (req, res) => {
     req.file.path = newPath;
     req.file.filename = newFilename;
     
-    const coverUrl = `http://localhost:${PORT}/uploads/covers/${folderName}/${newFilename}`;
+    const coverUrl = `/uploads/covers/${folderName}/${newFilename}`;
     
     res.json({
       success: true,
