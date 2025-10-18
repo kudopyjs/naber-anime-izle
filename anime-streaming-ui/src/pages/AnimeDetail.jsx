@@ -6,6 +6,8 @@ import Footer from '../components/Footer'
 import AddToListModal from '../components/AddToListModal'
 import API_BASE_URL from '../config/api'
 
+const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '515326'
+
 function AnimeDetail() {
   const { animeSlug } = useParams()
   const navigate = useNavigate()
@@ -95,12 +97,37 @@ function AnimeDetail() {
           setEpisodes([])
         }
       } else if (season.collectionId) {
-        // Eski Bunny format için backward compatibility
+        // Bunny Collection'dan videoları çek
         const videosResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
         const videosData = await videosResponse.json()
         
-        if (videosData.success) {
-          setEpisodes(videosData.videos)
+        if (videosData.success && videosData.videos) {
+          // Bunny videolarını episode formatına çevir
+          const bunnyEpisodes = videosData.videos.map((video, index) => {
+            // Video title'dan episode numarasını çıkar (örn: "Naruto - 1. Bölüm" -> 1)
+            const episodeMatch = video.title.match(/(\d+)\.?\s*Bölüm/i) || 
+                                video.title.match(/Episode\s*(\d+)/i) ||
+                                video.title.match(/Ep\s*(\d+)/i)
+            const episodeNumber = episodeMatch ? parseInt(episodeMatch[1]) : index + 1
+            
+            return {
+              episodeNumber: episodeNumber,
+              title: video.title,
+              url: `https://iframe.mediadelivery.net/embed/${videosData.libraryId || BUNNY_LIBRARY_ID}/${video.guid}`,
+              videoId: video.guid,
+              thumbnail: video.thumbnailFileName ? 
+                `https://vz-${video.storageZoneName}.b-cdn.net/${video.guid}/${video.thumbnailFileName}` : 
+                null,
+              duration: video.length || 0,
+              views: video.views || 0
+            }
+          })
+          
+          // Episode numarasına göre sırala
+          bunnyEpisodes.sort((a, b) => a.episodeNumber - b.episodeNumber)
+          setEpisodes(bunnyEpisodes)
+        } else {
+          setEpisodes([])
         }
       }
     } catch (err) {

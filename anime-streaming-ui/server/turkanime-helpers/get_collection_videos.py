@@ -38,6 +38,7 @@ try:
             return {
                 "success": True,
                 "collectionId": collection_id,
+                "libraryId": BUNNY_LIBRARY_ID,
                 "videos": sorted_videos,
                 "total": len(sorted_videos)
             }

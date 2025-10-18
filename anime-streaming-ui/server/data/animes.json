@@ -1,19 +1,5 @@
 [
   {
-    "id": "1760550333498",
-    "name": "Naruto",
-    "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
-    "description": "Naruto yaramazlıklar yapıyor.",
-    "genre": "Aksiyon, Macera, Shonen",
-    "year": "2007",
-    "status": "completed",
-    "createdBy": "kudo.py",
-    "createdAt": "2025-10-15T17:45:33.498Z",
-    "genres": [],
-    "coverImage": "/uploads/covers/naruto/cover.jpg",
-    "updatedAt": "2025-10-15T21:32:25.672Z"
-  },
-  {
     "id": "1760553474753",
     "name": "Bleach: Thousand Year Blood War",
     "collectionId": "a5967c79-3d21-4cd3-ab9c-83aa690352f3",
@@ -59,6 +45,26 @@
     "createdAt": "2025-10-18T11:21:43.435Z",
     "b2Folder": "One Piece Season 1",
     "collectionId": null,
+    "totalEpisodes": 0
+  },
+  {
+    "id": "1760812723655",
+    "name": "Naruto",
+    "seasons": [
+      {
+        "seasonNumber": 1,
+        "collectionId": "🐰 Naruto Season 1 (7 video)"
+      }
+    ],
+    "description": "Naruto işte kötü anime izleme",
+    "genres": [],
+    "year": "2002",
+    "status": "completed",
+    "coverImage": "/uploads/covers/naruto/cover.jpg",
+    "createdBy": "kudo",
+    "createdAt": "2025-10-18T18:38:43.655Z",
+    "b2Folder": null,
+    "collectionId": "🐰 Naruto Season 1 (7 video)",
     "totalEpisodes": 0
   }
 ]
