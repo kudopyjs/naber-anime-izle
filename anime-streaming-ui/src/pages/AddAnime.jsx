@@ -10,8 +10,8 @@ function AddAnime() {
   const navigate = useNavigate()
   const { user, canManageServer } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [loadingFolders, setLoadingFolders] = useState(true)
-  const [b2Folders, setB2Folders] = useState([])
+  const [loadingCollections, setLoadingCollections] = useState(true)
+  const [bunnyCollections, setBunnyCollections] = useState([])
   const [animeData, setAnimeData] = useState({
     name: '',
     description: '',
@@ -22,7 +22,7 @@ function AddAnime() {
   })
   const [seasons, setSeasons] = useState([{
     seasonNumber: 1,
-    b2Folder: ''
+    collectionId: ''
   }])
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState('')
@@ -32,24 +32,24 @@ function AddAnime() {
   const [nameWarning, setNameWarning] = useState('')
   const [checkingName, setCheckingName] = useState(false)
 
-  // Load B2 folders
+  // Load Bunny collections
   useEffect(() => {
-    loadB2Folders()
+    loadBunnyCollections()
   }, [])
 
-  const loadB2Folders = async () => {
+  const loadBunnyCollections = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/b2/folders`)
+      const response = await fetch(`${API_BASE_URL}/bunny/collections`)
       const data = await response.json()
       
       if (data.success) {
-        setB2Folders(data.folders || [])
+        setBunnyCollections(data.collections || [])
       }
     } catch (err) {
-      console.error('Error loading B2 folders:', err)
-      setError('B2 klasörleri yüklenemedi')
+      console.error('Error loading Bunny collections:', err)
+      setError('Bunny collections yüklenemedi')
     } finally {
-      setLoadingFolders(false)
+      setLoadingCollections(false)
     }
   }
 
@@ -171,7 +171,7 @@ function AddAnime() {
         })
         setSeasons([{
           seasonNumber: 1,
-          b2Folder: ''
+          collectionId: ''
         }])
         setCoverFile(null)
         setCoverPreview('')
@@ -244,7 +244,7 @@ function AddAnime() {
     const newSeasonNumber = seasons.length + 1
     setSeasons([...seasons, {
       seasonNumber: newSeasonNumber,
-      b2Folder: ''
+      collectionId: ''
     }])
   }
 
@@ -454,23 +454,23 @@ function AddAnime() {
                     {/* B2 Folder Selection */}
                     <div>
                       <label className="block text-white/80 text-sm mb-2">
-                        B2 Klasörü <span className="text-red-400">*</span>
+                        🐰 Bunny Collection <span className="text-red-400">*</span>
                       </label>
-                      {loadingFolders ? (
+                      {loadingCollections ? (
                         <div className="px-3 py-2 bg-black/30 border border-white/10 rounded text-white/60 text-sm">
                           Yükleniyor...
                         </div>
                       ) : (
                         <select
-                          value={season.b2Folder}
-                          onChange={(e) => handleSeasonChange(index, 'b2Folder', e.target.value)}
-                          className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-primary"
+                          value={season.collectionId}
+                          onChange={(e) => handleSeasonChange(index, 'collectionId', e.target.value)}
+                          className="w-full px-3 py-2 bg-black/30 border border-orange-500/20 rounded-lg text-white text-sm focus:outline-none focus:border-orange-500"
                           required
                         >
-                          <option value="">Klasör seçin...</option>
-                          {b2Folders.map((folder) => (
-                            <option key={folder} value={folder}>
-                              📁 {folder}
+                          <option value="">Collection seçin...</option>
+                          {bunnyCollections.map((collection) => (
+                            <option key={collection.videoLibraryId} value={collection.videoLibraryId}>
+                              🐰 {collection.name} ({collection.videoCount || 0} video)
                             </option>
                           ))}
                         </select>
@@ -478,7 +478,7 @@ function AddAnime() {
                     </div>
 
                     <p className="text-white/40 text-xs mt-2">
-                      📂 Klasör yapısı: {season.b2Folder || 'anime-slug'}/Episode-1, Episode-2, ...
+                      🐰 Bunny Stream'deki collection ID'si. Videolar bu collection'da saklanır.
                     </p>
                   </div>
                 ))}
@@ -530,7 +530,7 @@ function AddAnime() {
               </button>
               <button
                 type="submit"
-                disabled={loading || uploadingCover || !animeData.name || !coverFile || nameWarning || checkingName || seasons.some(s => !s.b2Folder)}
+                disabled={loading || uploadingCover || !animeData.name || !coverFile || nameWarning || checkingName || seasons.some(s => !s.collectionId)}
                 className="flex-1 px-6 py-3 bg-primary hover:bg-primary/80 text-background-dark font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploadingCover ? '📤 Görsel Yükleniyor...' : loading ? '🔄 Kaydediliyor...' : checkingName ? '🔍 Kontrol ediliyor...' : '✓ Anime Kaydet'}
