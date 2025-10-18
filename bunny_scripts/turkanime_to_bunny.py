@@ -27,6 +27,15 @@ import json
 import tempfile
 from yt_dlp import YoutubeDL
 
+# Try to import pycurl for faster uploads
+try:
+    import pycurl
+    from io import BytesIO
+    HAS_PYCURL = True
+except ImportError:
+    HAS_PYCURL = False
+    print("⚠️ pycurl not installed. Install for faster uploads: pip install pycurl")
+
 # turkanime-indirici kütüphanesini import et
 try:
     import turkanime_api as ta
@@ -286,6 +295,58 @@ class BunnyUploader:
                 "error": str(e)
             }
     
+    def _upload_with_pycurl(self, file_path: str, video_id: str) -> bool:
+        """pycurl ile hızlı upload (C library, çok daha hızlı)"""
+        if not HAS_PYCURL:
+            return False
+        
+        try:
+            file_size = os.path.getsize(file_path)
+            url = f"{self.base_url}/videos/{video_id}"
+            
+            print(f"  🚀 pycurl ile yükleniyor (C library - daha hızlı)...", flush=True)
+            
+            start_time = time.time()
+            last_progress = [0]
+            
+            def progress_callback(download_total, downloaded, upload_total, uploaded):
+                if upload_total > 0:
+                    progress = (uploaded / upload_total) * 100
+                    if progress - last_progress[0] >= 5 or uploaded == upload_total:
+                        elapsed = time.time() - start_time
+                        speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
+                        print(f"    [{progress:.0f}%] {uploaded / (1024*1024):.1f}/{upload_total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
+                        last_progress[0] = progress
+            
+            c = pycurl.Curl()
+            c.setopt(pycurl.URL, url)
+            c.setopt(pycurl.UPLOAD, 1)
+            c.setopt(pycurl.READDATA, open(file_path, 'rb'))
+            c.setopt(pycurl.INFILESIZE, file_size)
+            c.setopt(pycurl.HTTPHEADER, [
+                f"AccessKey: {self.api_key}",
+                "Content-Type: application/octet-stream"
+            ])
+            c.setopt(pycurl.NOPROGRESS, 0)
+            c.setopt(pycurl.XFERINFOFUNCTION, progress_callback)
+            c.setopt(pycurl.WRITEDATA, BytesIO())
+            c.setopt(pycurl.TCP_NODELAY, 1)
+            c.setopt(pycurl.BUFFERSIZE, 16 * 1024 * 1024)
+            
+            c.perform()
+            status_code = c.getinfo(pycurl.RESPONSE_CODE)
+            c.close()
+            
+            elapsed = time.time() - start_time
+            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
+            print(f"  ✅ Yükleme tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
+            
+            return status_code == 200
+            
+        except Exception as e:
+            print(f"  ⚠️ pycurl upload failed: {e}")
+            return False
+    
     def upload_file_direct(self, file_path: str, title: str, collection_id: str = None) -> Dict:
         """Dosyayı direkt Bunny.net'e yükle"""
         try:
@@ -317,10 +378,23 @@ class BunnyUploader:
             print(f"  ✅ Video oluşturuldu: {video_id}")
             print(f"  ℹ️ Collection taşıma işlemi tüm videolar yüklendikten sonra yapılacak")
             
-            # 2. Dosyayı yükle (chunk-based streaming)
+            # 2. Dosyayı yükle
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
-            print(f"  ⬆️ Yükleme başlıyor (chunk-based streaming)...", flush=True)
+            
+            # Önce pycurl dene (çok daha hızlı)
+            if HAS_PYCURL:
+                if self._upload_with_pycurl(file_path, video_id):
+                    return {
+                        "success": True,
+                        "video_id": video_id,
+                        "title": title
+                    }
+                else:
+                    print(f"  ⚠️ pycurl başarısız, requests ile deneniyor...")
+            
+            # Fallback: requests ile yükle
+            print(f"  ⬆️ Yükleme başlıyor (requests - chunk-based)...", flush=True)
             
             start_time = time.time()
             chunk_size = 16 * 1024 * 1024  # 16MB chunks (optimize for high-speed connections)
