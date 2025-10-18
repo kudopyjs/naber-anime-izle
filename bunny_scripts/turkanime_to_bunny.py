@@ -202,6 +202,67 @@ class BunnyUploader:
                 "error": str(e)
             }
     
+    def _upload_with_multipart(self, file_path: str, video_id: str) -> bool:
+        """Multipart upload (parça parça, .ts gibi)"""
+        try:
+            file_size = os.path.getsize(file_path)
+            url = f"{self.base_url}/videos/{video_id}"
+            chunk_size = 5 * 1024 * 1024  # 5MB chunks (like .ts segments)
+            
+            print(f"  🚀 Multipart upload (5MB chunks, .ts gibi)...", flush=True)
+            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB", flush=True)
+            print(f"  📦 Toplam parça: {(file_size + chunk_size - 1) // chunk_size}", flush=True)
+            
+            start_time = time.time()
+            uploaded = 0
+            chunk_num = 0
+            
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    
+                    chunk_num += 1
+                    chunk_start = uploaded
+                    chunk_end = uploaded + len(chunk) - 1
+                    
+                    # Upload chunk with range header
+                    headers = {
+                        'AccessKey': self.api_key,
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Range': f'bytes {chunk_start}-{chunk_end}/{file_size}'
+                    }
+                    
+                    response = requests.put(
+                        url,
+                        headers=headers,
+                        data=chunk,
+                        timeout=300
+                    )
+                    
+                    if response.status_code not in [200, 201, 206]:
+                        print(f"  ❌ Chunk {chunk_num} failed: {response.status_code}")
+                        return False
+                    
+                    uploaded += len(chunk)
+                    progress = (uploaded / file_size) * 100
+                    elapsed = time.time() - start_time
+                    speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
+                    
+                    # Her chunk'ta progress göster
+                    print(f"    [Chunk {chunk_num}] {progress:.1f}% | {uploaded / (1024*1024):.1f}/{file_size / (1024*1024):.1f} MB | {speed:.2f} MB/s", flush=True)
+            
+            elapsed = time.time() - start_time
+            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
+            print(f"  ✅ Multipart upload tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
+            
+            return True
+            
+        except Exception as e:
+            print(f"  ⚠️ Multipart upload failed: {e}")
+            return False
+    
     def _upload_with_tus(self, file_path: str, video_id: str) -> bool:
         """TUS protocol ile resumable upload (en hızlı ve güvenilir)"""
         if not HAS_TUS:
@@ -382,7 +443,17 @@ class BunnyUploader:
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
             
-            # Önce TUS dene (en hızlı ve güvenilir)
+            # Önce multipart dene (5MB chunks, .ts gibi)
+            if self._upload_with_multipart(file_path, video_id):
+                return {
+                    "success": True,
+                    "video_id": video_id,
+                    "title": title
+                }
+            else:
+                print(f"  ⚠️ Multipart başarısız, TUS ile deneniyor...")
+            
+            # Fallback: TUS dene
             if HAS_TUS:
                 if self._upload_with_tus(file_path, video_id):
                     return {
