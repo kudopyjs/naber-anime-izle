@@ -307,16 +307,21 @@ class BunnyUploader:
             print(f"  🚀 pycurl ile yükleniyor (C library - daha hızlı)...", flush=True)
             
             start_time = time.time()
-            last_progress = [0]
+            last_progress = [0, 0, 0]  # [progress%, uploaded_bytes, elapsed_time]
             
             def progress_callback(download_total, downloaded, upload_total, uploaded):
                 if upload_total > 0:
                     progress = (uploaded / upload_total) * 100
-                    if progress - last_progress[0] >= 5 or uploaded == upload_total:
+                    # Her %1'de bir göster (daha sık)
+                    if progress - last_progress[0] >= 1 or uploaded == upload_total:
                         elapsed = time.time() - start_time
                         speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
-                        print(f"    [{progress:.0f}%] {uploaded / (1024*1024):.1f}/{upload_total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
+                        # Anlık hız da göster
+                        instant_speed = (uploaded - last_progress[1]) / (elapsed - last_progress[2]) / (1024*1024) if elapsed > last_progress[2] else 0
+                        print(f"    [{progress:.1f}%] {uploaded / (1024*1024):.1f}/{upload_total / (1024*1024):.1f} MB | Avg: {speed:.2f} MB/s | Now: {instant_speed:.2f} MB/s", flush=True)
                         last_progress[0] = progress
+                        last_progress[1] = uploaded
+                        last_progress[2] = elapsed
             
             c = pycurl.Curl()
             c.setopt(pycurl.URL, url)
@@ -335,11 +340,27 @@ class BunnyUploader:
             
             c.perform()
             status_code = c.getinfo(pycurl.RESPONSE_CODE)
+            
+            # Debug info
+            upload_speed = c.getinfo(pycurl.SPEED_UPLOAD)
+            total_time = c.getinfo(pycurl.TOTAL_TIME)
+            namelookup_time = c.getinfo(pycurl.NAMELOOKUP_TIME)
+            connect_time = c.getinfo(pycurl.CONNECT_TIME)
+            pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
+            starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+            
             c.close()
             
             elapsed = time.time() - start_time
             speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
             print(f"  ✅ Yükleme tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
+            print(f"  📊 Debug Info:")
+            print(f"     DNS Lookup: {namelookup_time*1000:.0f}ms")
+            print(f"     Connect: {connect_time*1000:.0f}ms")
+            print(f"     Pre-transfer: {pretransfer_time*1000:.0f}ms")
+            print(f"     Start transfer: {starttransfer_time*1000:.0f}ms")
+            print(f"     Total time: {total_time:.1f}s")
+            print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
             
             return status_code == 200
             
