@@ -1233,16 +1233,29 @@ app.post('/api/turkanime/sync-to-bunny', async (req, res) => {
       });
     }
     
-    console.log('🐰 Bunny Sync başlatılıyor...');
+    // Rate limiting: 10 dakikada 5 bölüm
+    // Her batch'te sadece 5 bölüm işle
+    const batchSize = 5;
+    const actualEndEpisode = endEpisode || (startEpisode + batchSize - 1);
+    const limitedEndEpisode = Math.min(actualEndEpisode, startEpisode + batchSize - 1);
+    
+    console.log('🐰 Bunny Sync başlatılıyor (Rate Limited)...');
     console.log('  Anime:', animeSlug);
-    console.log('  Bölümler:', `${startEpisode}-${endEpisode || 'son'}`);
+    console.log('  İstenen bölümler:', `${startEpisode}-${endEpisode || 'son'}`);
+    console.log('  Bu batch:', `${startEpisode}-${limitedEndEpisode} (${limitedEndEpisode - startEpisode + 1} bölüm)`);
     console.log('  Collection:', collectionName || 'Varsayılan');
+    console.log('  ⏱️ Rate Limit: 5 bölüm/10 dakika (2 dakika/bölüm)');
     
     // Hemen yanıt ver (async olarak çalışacak)
     res.json({
       success: true,
-      message: 'Bunny Sync başlatıldı, arka planda devam ediyor...',
-      status: 'processing'
+      message: `Bunny Sync başlatıldı: ${startEpisode}-${limitedEndEpisode} arası ${limitedEndEpisode - startEpisode + 1} bölüm işlenecek (Rate Limit: 5 bölüm/10 dakika)`,
+      status: 'processing',
+      batchInfo: {
+        requested: { start: startEpisode, end: endEpisode || 'all' },
+        processing: { start: startEpisode, end: limitedEndEpisode },
+        rateLimit: '5 episodes per 10 minutes'
+      }
     });
     
     // Python script'ini arka planda çalıştır
@@ -1250,14 +1263,9 @@ app.post('/api/turkanime/sync-to-bunny', async (req, res) => {
     
     const scriptArgs = [
       '--anime', animeSlug,
-      '--start', startEpisode.toString()
+      '--start', startEpisode.toString(),
+      '--end', limitedEndEpisode.toString()
     ];
-    
-    if (endEpisode) {
-      scriptArgs.push('--end', endEpisode.toString());
-    } else {
-      scriptArgs.push('--all');
-    }
     
     runPythonScript(scriptPath, scriptArgs)
       .then(result => {

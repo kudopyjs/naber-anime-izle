@@ -379,6 +379,18 @@ class BunnyUploader:
             print(f"⚠️ Video listesi alınamadı: {e}")
             return []
     
+    def video_exists(self, title: str, collection_id: str = None) -> bool:
+        """Videonun Bunny'de olup olmadığını kontrol et"""
+        try:
+            videos = self.list_videos(collection_id=collection_id, items_per_page=1000)
+            for video in videos:
+                if video.get("title") == title:
+                    return True
+            return False
+        except Exception as e:
+            print(f"⚠️ Video kontrolü başarısız: {e}")
+            return False
+    
     def update_video(self, video_id: str, collection_id: str = None, title: str = None) -> bool:
         """Video bilgilerini güncelle (collection'a taşı)"""
         try:
@@ -515,6 +527,14 @@ class TurkAnimeToBunny:
             print("-" * 60)
             
             try:
+                # Bunny'de zaten var mı kontrol et
+                video_title = f"{anime.title} - {bolum.title}"
+                print("🔍 Bunny'de video kontrolü yapılıyor...")
+                if self.bunny.video_exists(title=video_title, collection_id=collection_id):
+                    print(f"✅ Video zaten Bunny'de mevcut, atlanıyor...")
+                    self.stats["skipped"] += 1
+                    continue
+                
                 # En iyi videoyu bul
                 print("🔍 En iyi video aranıyor...")
                 
