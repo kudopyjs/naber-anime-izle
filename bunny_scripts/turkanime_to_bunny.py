@@ -36,8 +36,8 @@ except ImportError:
     sys.exit(1)
 
 # Bunny.net API bilgileri
-BUNNY_API_KEY = "26908cc0-97c0-4855-89075898cd7c-edf0-485a"
-BUNNY_LIBRARY_ID = "512139"
+BUNNY_API_KEY = "53c7d7fb-32c8-491e-aeffa1a04974-1412-4208"
+BUNNY_LIBRARY_ID = "515326"
 
 if not BUNNY_API_KEY or not BUNNY_LIBRARY_ID:
     print("❌ Bunny.net API bilgileri bulunamadı!")
