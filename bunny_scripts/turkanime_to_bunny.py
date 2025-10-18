@@ -409,16 +409,23 @@ class BunnyUploader:
             
             elapsed = time.time() - start_time
             speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
-            print(f"  ✅ Yükleme tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
-            print(f"  📊 Debug Info:")
-            print(f"     DNS Lookup: {namelookup_time*1000:.0f}ms")
-            print(f"     Connect: {connect_time*1000:.0f}ms")
-            print(f"     Pre-transfer: {pretransfer_time*1000:.0f}ms")
-            print(f"     Start transfer: {starttransfer_time*1000:.0f}ms")
-            print(f"     Total time: {total_time:.1f}s")
-            print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
             
-            return status_code == 200
+            # Status code kontrolü
+            if status_code == 200:
+                print(f"  ✅ Yükleme tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
+                print(f"  📊 Debug Info:")
+                print(f"     DNS Lookup: {namelookup_time*1000:.0f}ms")
+                print(f"     Connect: {connect_time*1000:.0f}ms")
+                print(f"     Pre-transfer: {pretransfer_time*1000:.0f}ms")
+                print(f"     Start transfer: {starttransfer_time*1000:.0f}ms")
+                print(f"     Total time: {total_time:.1f}s")
+                print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
+                return True
+            else:
+                print(f"  ❌ pycurl upload failed: HTTP {status_code}")
+                print(f"     Total time: {total_time:.1f}s")
+                print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
+                return False
             
         except Exception as e:
             print(f"  ⚠️ pycurl upload failed: {e}")
@@ -459,22 +466,7 @@ class BunnyUploader:
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
             
-            # Multipart devre dışı (Bunny desteklemiyor - 400 error)
-            # if self._upload_with_multipart(file_path, video_id):
-            #     return {"success": True, "video_id": video_id, "title": title}
-            
-            # TUS dene
-            if HAS_TUS:
-                if self._upload_with_tus(file_path, video_id):
-                    return {
-                        "success": True,
-                        "video_id": video_id,
-                        "title": title
-                    }
-                else:
-                    print(f"  ⚠️ TUS başarısız, pycurl ile deneniyor...")
-            
-            # Fallback: pycurl dene
+            # pycurl dene (en hızlı)
             if HAS_PYCURL:
                 if self._upload_with_pycurl(file_path, video_id):
                     return {
