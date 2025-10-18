@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import VideoPlayerPlyr from '../components/VideoPlayerPlyr'
 import API_BASE_URL from '../config/api'
 
 function Watch() {
@@ -148,15 +147,22 @@ function Watch() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="relative rounded-xl overflow-hidden bg-black shadow-2xl"
+              style={{ paddingTop: '56.25%' }} // 16:9 aspect ratio
             >
-              <VideoPlayerPlyr
-                src={videoData?.playlistUrl || ''}
-                poster={videoData?.thumbnailFileName ? `https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${videoData.guid}/${videoData.thumbnailFileName}` : undefined}
-                onEnded={() => {
-                  if (nextEpisode) {
-                    navigate(`/watch/${animeSlug}/${seasonNumber}/${nextEpisode.episodeNumber}`)
-                  }
+              {/* Bunny Stream Beta Player */}
+              <iframe
+                src={`https://iframe.mediadelivery.net/embed/${import.meta.env.VITE_BUNNY_LIBRARY_ID}/${videoData?.guid}?autoplay=false&preload=true`}
+                loading="lazy"
+                style={{
+                  border: 'none',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  height: '100%',
+                  width: '100%',
                 }}
+                allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                allowFullScreen={true}
               />
               
               {/* Encoding Warning Overlay */}
