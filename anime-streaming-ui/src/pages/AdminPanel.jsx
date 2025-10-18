@@ -13,8 +13,8 @@ function AdminPanel() {
   const [activeTab, setActiveTab] = useState('categories')
   const [categories, setCategories] = useState([])
   const [animes, setAnimes] = useState([])
-  const [b2Folders, setB2Folders] = useState([])
-  const [loadingFolders, setLoadingFolders] = useState(false)
+  const [bunnyCollections, setBunnyCollections] = useState([])
+  const [loadingCollections, setLoadingCollections] = useState(false)
   const [loadingAnimes, setLoadingAnimes] = useState(false)
   const [users, setUsers] = useState([])
   const [newCategory, setNewCategory] = useState({ name: '', icon: '' })
@@ -55,7 +55,7 @@ function AdminPanel() {
   useEffect(() => {
     if (activeTab === 'anime') {
       loadAnimes()
-      loadB2Folders()
+      loadBunnyCollections()
     }
   }, [activeTab])
 
@@ -77,21 +77,21 @@ function AdminPanel() {
     }
   }
 
-  const loadB2Folders = async () => {
-    setLoadingFolders(true)
+  const loadBunnyCollections = async () => {
+    setLoadingCollections(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/b2/folders`)
+      const response = await fetch(`${API_BASE_URL}/bunny/collections`)
       const data = await response.json()
       
       if (data.success) {
-        setB2Folders(data.folders || [])
+        setBunnyCollections(data.collections || [])
       } else {
-        console.error('Failed to load B2 folders:', data.error)
+        console.error('Failed to load Bunny collections:', data.error)
       }
     } catch (error) {
-      console.error('Error loading B2 folders:', error)
+      console.error('Error loading Bunny collections:', error)
     } finally {
-      setLoadingFolders(false)
+      setLoadingCollections(false)
     }
   }
 
@@ -371,12 +371,12 @@ function AdminPanel() {
                   <button
                     onClick={() => {
                       loadAnimes()
-                      loadB2Folders()
+                      loadBunnyCollections()
                     }}
-                    disabled={loadingAnimes || loadingFolders}
+                    disabled={loadingAnimes || loadingCollections}
                     className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {(loadingAnimes || loadingFolders) ? '🔄 Yükleniyor...' : '🔄 Yenile'}
+                    {(loadingAnimes || loadingCollections) ? '🔄 Yükleniyor...' : '🔄 Yenile'}
                   </button>
                 </div>
               </div>
@@ -462,38 +462,49 @@ function AdminPanel() {
                 )}
               </div>
               
-              {/* B2 Folders */}
+              {/* Bunny Collections */}
               <div className="pt-8 border-t border-white/10">
-                <h3 className="text-xl font-bold text-white mb-4">📦 B2 Storage Folders</h3>
-                {loadingFolders ? (
+                <h3 className="text-xl font-bold text-white mb-4">🐰 Bunny Stream Collections</h3>
+                {loadingCollections ? (
                 <div className="text-center py-12">
                   <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-                  <p className="text-white/60 mt-4">B2'den klasörler yükleniyor...</p>
+                  <p className="text-white/60 mt-4">Bunny collections yükleniyor...</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {b2Folders.map((folder, index) => (
+                  {bunnyCollections.map((collection) => (
                     <div
-                      key={index}
-                      className="bg-black/30 border border-white/10 rounded-lg p-4 hover:border-primary/50 transition-all"
+                      key={collection.videoLibraryId}
+                      className="bg-black/30 border border-orange-500/20 rounded-lg p-4 hover:border-orange-500/50 transition-all"
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h3 className="text-white font-semibold text-lg">📁 {folder}</h3>
+                        <div className="flex-1">
+                          <h3 className="text-white font-semibold text-lg line-clamp-1">🐰 {collection.name}</h3>
                           <p className="text-white/60 text-sm">
-                            B2 Storage Folder
+                            {collection.videoCount || 0} video
                           </p>
                         </div>
                       </div>
-                      <div className="text-white/40 text-xs">
-                        Backblaze B2 Storage
+                      <div className="flex items-center justify-between">
+                        <div className="text-white/40 text-xs">
+                          Bunny Stream Collection
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(collection.videoLibraryId)
+                            alert('Collection ID kopyalandı!')
+                          }}
+                          className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-xs rounded transition-colors"
+                        >
+                          📋 ID
+                        </button>
                       </div>
                     </div>
                   ))}
                   
-                  {b2Folders.length === 0 && (
+                  {bunnyCollections.length === 0 && (
                     <p className="text-white/60 text-center py-8">
-                      B2'de henüz klasör bulunamadı.
+                      Henüz Bunny collection bulunamadı.
                     </p>
                   )}
                 </div>
