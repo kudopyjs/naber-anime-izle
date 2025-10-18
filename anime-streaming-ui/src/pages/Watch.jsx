@@ -1,16 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import Hls from 'hls.js'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import VideoPlayerPlyr from '../components/VideoPlayerPlyr'
 import API_BASE_URL from '../config/api'
 
 function Watch() {
   const { animeSlug, seasonNumber, episodeNumber } = useParams()
   const navigate = useNavigate()
-  const videoRef = useRef(null)
-  const hlsRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [videoData, setVideoData] = useState(null)
@@ -128,99 +126,6 @@ function Watch() {
     }
   }
 
-  const initializePlayer = () => {
-    const video = videoRef.current
-    if (!video) return
-
-    // Önceki HLS instance'ını temizle
-    if (hlsRef.current) {
-      hlsRef.current.destroy()
-      hlsRef.current = null
-    }
-
-    // Video ID'yi al (guid veya videoLibraryId)
-    const currentVideoId = videoData.guid || videoData.videoLibraryId
-    
-    // Bunny.net için doğru URL formatı
-    // Eğer video public değilse, signed URL kullanmamız gerekebilir
-    const videoUrl = `https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${currentVideoId}/playlist.m3u8`
-    
-    console.log('Video URL:', videoUrl)
-    console.log('Video Data:', videoData)
-    console.log('Video Status:', videoData.status)
-    
-    // 403 hatası alıyorsak, video public değil veya referrer kontrolü var
-    // Bunny.net dashboard'dan şunları kontrol et:
-    // 1. Video Settings -> Security -> Allowed Referrers
-    // 2. Video Settings -> Security -> Token Authentication (kapalı olmalı)
-
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-      })
-      
-      hlsRef.current = hls
-      
-      hls.loadSource(videoUrl)
-      hls.attachMedia(video)
-      
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('✅ Video ready to play')
-        console.log('Available quality levels:', hls.levels)
-        video.play().catch(err => {
-          console.log('⚠️ Autoplay prevented:', err)
-        })
-      })
-      
-      hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
-        console.log('✅ Quality level loaded:', data.level, data.details)
-      })
-      
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('HLS error:', data)
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('Network error - video bulunamadı veya erişilemiyor')
-              setError('Video yüklenemedi. Lütfen Bunny CDN ayarlarınızı kontrol edin.')
-              break
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error('Media error - video formatı hatalı')
-              hls.recoverMediaError()
-              break
-            default:
-              setError('Video oynatılırken hata oluştu')
-              break
-          }
-        }
-      })
-      
-      return () => {
-        if (hlsRef.current) {
-          hlsRef.current.destroy()
-          hlsRef.current = null
-        }
-      }
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari native HLS support
-      console.log('🍎 Using Safari native HLS')
-      video.src = videoUrl
-      video.play().catch(err => {
-        console.log('⚠️ Autoplay prevented:', err)
-      })
-      
-      return () => {
-        console.log('🧹 Cleaning up Safari player')
-        video.src = ''
-      }
-    } else {
-      console.error('❌ HLS not supported')
-      setError('Bu tarayıcı video formatını desteklemiyor')
-      return () => {}
-    }
-  }
-
   const nextEpisode = allEpisodes[currentEpisodeIndex + 1]
   const prevEpisode = allEpisodes[currentEpisodeIndex - 1]
 
@@ -275,14 +180,16 @@ function Watch() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="relative aspect-video rounded-xl overflow-hidden bg-black shadow-2xl"
+              className="relative rounded-xl overflow-hidden bg-black shadow-2xl"
             >
-              <video
-                ref={videoRef}
-                className="w-full h-full"
-                controls
-                playsInline
+              <VideoPlayerPlyr
+                src={videoData?.playlistUrl || ''}
                 poster={videoData?.thumbnailFileName ? `https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${videoData.guid}/${videoData.thumbnailFileName}` : undefined}
+                onEnded={() => {
+                  if (nextEpisode) {
+                    navigate(`/watch/${animeSlug}/${seasonNumber}/${nextEpisode.episodeNumber}`)
+                  }
+                }}
               />
               
               {/* Encoding Warning Overlay */}
