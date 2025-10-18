@@ -346,6 +346,7 @@ class BunnyUploader:
             start_time = time.time()
             last_progress = [0]
             
+            # Set progress callback on uploader object
             def progress_callback(offset, total):
                 progress = (offset / total) * 100
                 if progress - last_progress[0] >= 1 or offset == total:
@@ -354,8 +355,11 @@ class BunnyUploader:
                     print(f"    [{progress:.1f}%] {offset / (1024*1024):.1f}/{total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
                     last_progress[0] = progress
             
-            # Upload with progress
-            uploader.upload(progress_callback=progress_callback)
+            # Attach callback to uploader
+            uploader.set_progress_callback(progress_callback)
+            
+            # Upload
+            uploader.upload()
             
             elapsed = time.time() - start_time
             speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
