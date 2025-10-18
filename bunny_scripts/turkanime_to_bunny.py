@@ -36,6 +36,14 @@ except ImportError:
     HAS_PYCURL = False
     print("⚠️ pycurl not installed. Install for faster uploads: pip install pycurl")
 
+# Try to import TUS for resumable uploads
+try:
+    from tusclient import client as tus_client
+    HAS_TUS = True
+except ImportError:
+    HAS_TUS = False
+    print("⚠️ tuspy not installed. Install for TUS protocol: pip install tuspy")
+
 # turkanime-indirici kütüphanesini import et
 try:
     import turkanime_api as ta
@@ -295,6 +303,70 @@ class BunnyUploader:
                 "error": str(e)
             }
     
+    def _upload_with_tus(self, file_path: str, video_id: str) -> bool:
+        """TUS protocol ile resumable upload (en hızlı ve güvenilir)"""
+        if not HAS_TUS:
+            return False
+        
+        try:
+            file_size = os.path.getsize(file_path)
+            
+            print(f"  🚀 TUS protocol ile yükleniyor (resumable upload)...", flush=True)
+            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB", flush=True)
+            
+            # Bunny TUS endpoint
+            tus_url = f"https://video.bunnycdn.com/tusupload"
+            
+            # TUS client setup
+            my_client = tus_client.TusClient(tus_url)
+            
+            # Metadata
+            metadata = {
+                'videoLibraryId': self.library_id,
+                'guid': video_id,
+                'filename': os.path.basename(file_path)
+            }
+            
+            # Uploader
+            uploader = my_client.uploader(
+                file_path,
+                chunk_size=10 * 1024 * 1024,  # 10MB chunks
+                metadata=metadata,
+                headers={
+                    'AuthorizationSignature': self.api_key,
+                    'AuthorizationExpire': str(int(time.time()) + 3600),
+                    'VideoId': video_id,
+                    'LibraryId': self.library_id
+                }
+            )
+            
+            # Progress tracking
+            start_time = time.time()
+            last_progress = [0]
+            
+            def progress_callback(offset, total):
+                progress = (offset / total) * 100
+                if progress - last_progress[0] >= 1 or offset == total:
+                    elapsed = time.time() - start_time
+                    speed = (offset / (1024*1024)) / elapsed if elapsed > 0 else 0
+                    print(f"    [{progress:.1f}%] {offset / (1024*1024):.1f}/{total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
+                    last_progress[0] = progress
+            
+            # Upload with progress
+            uploader.upload(progress_callback=progress_callback)
+            
+            elapsed = time.time() - start_time
+            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
+            print(f"  ✅ TUS upload tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
+            
+            return True
+            
+        except Exception as e:
+            print(f"  ⚠️ TUS upload failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def _upload_with_pycurl(self, file_path: str, video_id: str) -> bool:
         """pycurl ile hızlı upload (C library, çok daha hızlı)"""
         if not HAS_PYCURL:
@@ -405,7 +477,18 @@ class BunnyUploader:
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
             
-            # Önce pycurl dene (çok daha hızlı)
+            # Önce TUS dene (en hızlı ve güvenilir)
+            if HAS_TUS:
+                if self._upload_with_tus(file_path, video_id):
+                    return {
+                        "success": True,
+                        "video_id": video_id,
+                        "title": title
+                    }
+                else:
+                    print(f"  ⚠️ TUS başarısız, pycurl ile deneniyor...")
+            
+            # Fallback: pycurl dene
             if HAS_PYCURL:
                 if self._upload_with_pycurl(file_path, video_id):
                     return {
