@@ -150,10 +150,111 @@ class BunnyUploader:
             return None
     
     def upload_from_url(self, video_url: str, title: str, collection_id: str = None) -> Dict:
-        """URL'den Bunny.net'e video aktar (direkt download & upload)"""
-        # Fetch API'si iki tane dosya oluşturuyor, direkt download & upload kullan
-        print("  📥 Video indiriliyor ve yükleniyor...")
-        return self._download_and_upload(video_url, title, collection_id)
+        """URL'den Bunny.net'e video aktar (via public URL method)"""
+        # Yeni metod: Video'yu sunucuya indir, public URL ver, Bunny kendi fetch etsin
+        return self._upload_via_public_url(video_url, title, collection_id)
+    
+    def _upload_via_public_url(self, video_url: str, title: str, collection_id: str = None) -> Dict:
+        """Video'yu sunucuya indir, public URL ver, Bunny fetch etsin"""
+        import hashlib
+        
+        try:
+            # Temp dir
+            temp_dir = "/var/www/naber-anime-izle/temp"
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Unique filename
+            filename = hashlib.md5(video_url.encode()).hexdigest() + ".mp4"
+            local_path = os.path.join(temp_dir, filename)
+            public_url = f"https://keyani.me/temp/{filename}"
+            
+            print(f"  📥 Video indiriliyor (yt-dlp + aria2c)...")
+            
+            # yt-dlp options
+            ydl_opts = {
+                'outtmpl': local_path,
+                'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
+                'quiet': False,
+                'concurrent_fragment_downloads': 8,
+                'http_chunk_size': 10485760,
+                'retries': 10,
+                'fragment_retries': 10,
+            }
+            
+            # aria2c if available
+            import shutil
+            if shutil.which('aria2c'):
+                print(f"  ⚡ aria2c ile hızlı indirme (16 paralel)")
+                ydl_opts['external_downloader'] = 'aria2c'
+                ydl_opts['external_downloader_args'] = ['-x', '16', '-s', '16', '-k', '1M']
+            
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+            
+            file_size = os.path.getsize(local_path)
+            print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
+            print(f"  🌐 Public URL: {public_url}")
+            
+            # 1. Create video
+            payload = {"title": title}
+            if collection_id:
+                payload["collectionId"] = collection_id
+                print(f"  📁 Collection ID ekleniyor: {collection_id}")
+            
+            response = requests.post(
+                f"{self.base_url}/videos",
+                headers=self.headers,
+                json=payload
+            )
+            
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"Video oluşturulamadı: {response.status_code}"
+                }
+            
+            video_id = response.json().get("guid")
+            print(f"  ✅ Video oluşturuldu: {video_id}")
+            
+            # 2. Tell Bunny to fetch from URL
+            print(f"  📤 Bunny'ye fetch komutu gönderiliyor...")
+            fetch_payload = {"url": public_url}
+            
+            response = requests.post(
+                f"{self.base_url}/videos/{video_id}/fetch",
+                headers=self.headers,
+                json=fetch_payload
+            )
+            
+            print(f"  📡 Fetch response: {response.status_code}")
+            
+            if response.status_code in [200, 201]:
+                print(f"  ✅ Bunny videoyu fetch ediyor!")
+                print(f"  ⏳ Bunny indirmeyi tamamladıktan sonra temp dosyayı silebilirsiniz")
+                print(f"     rm {local_path}")
+                
+                return {
+                    "success": True,
+                    "video_id": video_id,
+                    "title": title,
+                    "temp_file": local_path
+                }
+            else:
+                print(f"  ⚠️ Fetch başarısız: {response.status_code}")
+                print(f"  ⚠️ Fallback: Direkt upload deneniyor...")
+                # Fallback: direkt upload
+                result = self.upload_file_direct(local_path, title, collection_id)
+                # Clean up
+                try:
+                    os.remove(local_path)
+                except:
+                    pass
+                return result
+                
+        except Exception as e:
+            print(f"  ❌ Public URL upload hatası: {e}")
+            # Fallback: eski metod
+            return self._download_and_upload(video_url, title, collection_id)
     
     def _download_and_upload(self, video_url: str, title: str, collection_id: str = None) -> Dict:
         """Fetch başarısız olursa: İndir ve yükle"""
