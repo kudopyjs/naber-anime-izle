@@ -330,12 +330,6 @@ function AdminPanel() {
                 <h2 className="text-2xl font-bold text-white">Anime Management</h2>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => navigate('/bunny-sync')}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    🔄 Bunny Sync
-                  </button>
-                  <button
                     onClick={() => navigate('/add-anime')}
                     className="px-4 py-2 bg-primary hover:bg-primary/80 text-background-dark font-semibold rounded-lg transition-colors"
                   >
@@ -344,12 +338,12 @@ function AdminPanel() {
                   <button
                     onClick={() => {
                       loadAnimes()
-                      loadBunnyCollections()
+                      loadB2Folders()
                     }}
-                    disabled={loadingAnimes || loadingCollections}
+                    disabled={loadingAnimes || loadingFolders}
                     className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {(loadingAnimes || loadingCollections) ? '🔄 Yükleniyor...' : '🔄 Yenile'}
+                    {(loadingAnimes || loadingFolders) ? '🔄 Yükleniyor...' : '🔄 Yenile'}
                   </button>
                 </div>
               </div>
@@ -365,7 +359,6 @@ function AdminPanel() {
                 ) : animes.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {animes.map((anime) => {
-                      const collection = bunnyCollections.find(c => c.id === anime.collectionId)
                       return (
                         <div
                           key={anime.id}
