@@ -315,10 +315,7 @@ class BunnyUploader:
                     print(f"    [{progress:.1f}%] {offset / (1024*1024):.1f}/{total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
                     last_progress[0] = progress
             
-            # Attach callback to uploader
-            uploader.set_progress_callback(progress_callback)
-            
-            # Upload
+            # Upload (TUS library doesn't support progress callback in this version)
             uploader.upload()
             
             elapsed = time.time() - start_time
@@ -363,10 +360,14 @@ class BunnyUploader:
                         last_progress[1] = uploaded
                         last_progress[2] = elapsed
             
+            # Open file
+            file_handle = open(file_path, 'rb')
+            
             c = pycurl.Curl()
             c.setopt(pycurl.URL, url)
+            c.setopt(pycurl.CUSTOMREQUEST, "PUT")  # Bunny uses PUT
             c.setopt(pycurl.UPLOAD, 1)
-            c.setopt(pycurl.READDATA, open(file_path, 'rb'))
+            c.setopt(pycurl.READDATA, file_handle)
             c.setopt(pycurl.INFILESIZE, file_size)
             c.setopt(pycurl.HTTPHEADER, [
                 f"AccessKey: {self.api_key}",
@@ -380,6 +381,8 @@ class BunnyUploader:
             
             c.perform()
             status_code = c.getinfo(pycurl.RESPONSE_CODE)
+            
+            file_handle.close()
             
             # Debug info
             upload_speed = c.getinfo(pycurl.SPEED_UPLOAD)
@@ -443,17 +446,11 @@ class BunnyUploader:
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
             
-            # Önce multipart dene (5MB chunks, .ts gibi)
-            if self._upload_with_multipart(file_path, video_id):
-                return {
-                    "success": True,
-                    "video_id": video_id,
-                    "title": title
-                }
-            else:
-                print(f"  ⚠️ Multipart başarısız, TUS ile deneniyor...")
+            # Multipart devre dışı (Bunny desteklemiyor - 400 error)
+            # if self._upload_with_multipart(file_path, video_id):
+            #     return {"success": True, "video_id": video_id, "title": title}
             
-            # Fallback: TUS dene
+            # TUS dene
             if HAS_TUS:
                 if self._upload_with_tus(file_path, video_id):
                     return {
