@@ -64,14 +64,14 @@ export default function VideoPlayerPlyr({ src, poster, onTimeUpdate, onEnded }) 
 
   // Time update
   useEffect(() => {
-    const player = playerRef.current?.plyr;
-    if (!player) return;
+    const video = playerRef.current?.plyr?.media;
+    if (!video) return;
 
     const handleTimeUpdate = () => {
       if (onTimeUpdate) {
         onTimeUpdate({
-          currentTime: player.currentTime,
-          duration: player.duration,
+          currentTime: video.currentTime,
+          duration: video.duration,
         });
       }
     };
@@ -82,12 +82,12 @@ export default function VideoPlayerPlyr({ src, poster, onTimeUpdate, onEnded }) 
       }
     };
 
-    player.on('timeupdate', handleTimeUpdate);
-    player.on('ended', handleEnded);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('ended', handleEnded);
 
     return () => {
-      player.off('timeupdate', handleTimeUpdate);
-      player.off('ended', handleEnded);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ended', handleEnded);
     };
   }, [onTimeUpdate, onEnded]);
 
