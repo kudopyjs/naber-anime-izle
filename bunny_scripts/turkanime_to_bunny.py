@@ -317,8 +317,16 @@ class BunnyUploader:
             # Bunny TUS endpoint
             tus_url = f"https://video.bunnycdn.com/tusupload"
             
-            # TUS client setup
-            my_client = tus_client.TusClient(tus_url)
+            # Headers for TUS client
+            tus_headers = {
+                'AuthorizationSignature': self.api_key,
+                'AuthorizationExpire': str(int(time.time()) + 3600),
+                'VideoId': video_id,
+                'LibraryId': self.library_id
+            }
+            
+            # TUS client setup with headers
+            my_client = tus_client.TusClient(tus_url, headers=tus_headers)
             
             # Metadata
             metadata = {
@@ -331,13 +339,7 @@ class BunnyUploader:
             uploader = my_client.uploader(
                 file_path,
                 chunk_size=10 * 1024 * 1024,  # 10MB chunks
-                metadata=metadata,
-                headers={
-                    'AuthorizationSignature': self.api_key,
-                    'AuthorizationExpire': str(int(time.time()) + 3600),
-                    'VideoId': video_id,
-                    'LibraryId': self.library_id
-                }
+                metadata=metadata
             )
             
             # Progress tracking
