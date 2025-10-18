@@ -348,15 +348,31 @@ class BunnyUploader:
                         
                         yield chunk
             
-            upload_response = requests.put(
+            # Session ile connection pooling ve keep-alive
+            session = requests.Session()
+            session.headers.update({
+                "AccessKey": self.api_key,
+                "Content-Type": "application/octet-stream"
+            })
+            
+            # HTTP adapter ile connection settings
+            from requests.adapters import HTTPAdapter
+            from urllib3.util.retry import Retry
+            
+            adapter = HTTPAdapter(
+                pool_connections=1,
+                pool_maxsize=1,
+                max_retries=Retry(total=3, backoff_factor=1)
+            )
+            session.mount('https://', adapter)
+            
+            upload_response = session.put(
                 f"{self.base_url}/videos/{video_id}",
-                headers={
-                    "AccessKey": self.api_key,
-                    "Content-Type": "application/octet-stream"
-                },
                 data=file_chunks_with_progress(),
                 timeout=600  # 10 dakika timeout
             )
+            
+            session.close()
             
             elapsed_time = time.time() - start_time
             speed_mbps = (file_size / (1024*1024)) / elapsed_time if elapsed_time > 0 else 0
