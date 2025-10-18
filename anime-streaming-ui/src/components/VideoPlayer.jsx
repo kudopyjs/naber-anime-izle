@@ -14,8 +14,9 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
         controls: true,
         autoplay: false,
         preload: 'auto',
-        fluid: true,
-        responsive: true,
+        fluid: false,
+        responsive: false,
+        aspectRatio: '16:9',
         playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
         controlBar: {
           children: [
