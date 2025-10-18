@@ -39,7 +39,7 @@ try:
                 video_count = collection.get('videoCount', 0)
                 
                 result.append({
-                    'id': collection_id,
+                    'videoLibraryId': collection_id,
                     'name': collection_name,
                     'videoCount': video_count
                 })

@@ -48,7 +48,7 @@
     "totalEpisodes": 0
   },
   {
-    "id": "1760812723655",
+    "id": "1760813192522",
     "name": "Naruto",
     "seasons": [
       {
@@ -57,13 +57,13 @@
         "totalEpisodes": 7
       }
     ],
-    "description": "Naruto işte kötü anime izleme",
+    "description": "Kötü anime",
     "genres": [],
     "year": "2002",
     "status": "completed",
     "coverImage": "/uploads/covers/naruto/cover.jpg",
     "createdBy": "kudo",
-    "createdAt": "2025-10-18T18:38:43.655Z",
+    "createdAt": "2025-10-18T18:46:32.522Z",
     "b2Folder": null,
     "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
     "totalEpisodes": 7
