@@ -10,7 +10,7 @@
     "createdBy": "kudo.py",
     "createdAt": "2025-10-15T17:45:33.498Z",
     "genres": [],
-    "coverImage": "http://localhost:5002/uploads/covers/naruto/cover.jpg",
+    "coverImage": "/uploads/covers/naruto/cover.jpg",
     "updatedAt": "2025-10-15T21:32:25.672Z"
   },
   {
@@ -24,7 +24,7 @@
     "createdBy": "kudo.py",
     "createdAt": "2025-10-15T18:37:54.753Z",
     "genres": [],
-    "coverImage": "http://localhost:5002/uploads/covers/bleach-thousand-year-blood-war/cover.jpg",
+    "coverImage": "/uploads/covers/bleach-thousand-year-blood-war/cover.jpg",
     "updatedAt": "2025-10-15T21:33:06.991Z"
   },
   {
@@ -35,9 +35,30 @@
     "genres": [],
     "year": "2022",
     "status": "Tamamlandı",
-    "coverImage": "http://localhost:5002/uploads/covers/the-eminence-in-shadow/cover.jpg",
+    "coverImage": "/uploads/covers/the-eminence-in-shadow/cover.jpg",
     "createdBy": "kudo.py",
     "createdAt": "2025-10-16T10:36:42.255Z",
     "updatedAt": "2025-10-16T10:49:41.176Z"
+  },
+  {
+    "id": "1760786503435",
+    "name": "One Piece",
+    "seasons": [
+      {
+        "seasonNumber": 1,
+        "b2Folder": "One Piece Season 1",
+        "totalEpisodes": 0
+      }
+    ],
+    "description": "Luffy yapıyo işte bişiler",
+    "genres": [],
+    "year": "1999",
+    "status": "ongoing",
+    "coverImage": "/uploads/covers/one-piece/cover.png",
+    "createdBy": "kudo",
+    "createdAt": "2025-10-18T11:21:43.435Z",
+    "b2Folder": "One Piece Season 1",
+    "collectionId": null,
+    "totalEpisodes": 0
   }
 ]

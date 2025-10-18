@@ -18,6 +18,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
+import B2 from 'backblaze-b2';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -84,6 +88,34 @@ const upload = multer({
 
 // Python script'lerinin bulunduğu dizin
 const PYTHON_SCRIPTS_DIR = path.join(__dirname, '..', '..', 'bunny_scripts', 'turkanime-indirici-8.2.2');
+
+// B2 Client
+const b2 = new B2({
+  applicationKeyId: process.env.VITE_B2_KEY_ID,
+  applicationKey: process.env.VITE_B2_APPLICATION_KEY
+});
+
+// B2 Authorization helper
+let b2Auth = null;
+async function authorizeB2() {
+  if (b2Auth && Date.now() < b2Auth.expiresAt) {
+    return b2Auth;
+  }
+
+  try {
+    await b2.authorize();
+    b2Auth = {
+      token: b2.authorizationToken,
+      apiUrl: b2.apiUrl,
+      downloadUrl: b2.downloadUrl,
+      expiresAt: Date.now() + (23 * 60 * 60 * 1000)
+    };
+    return b2Auth;
+  } catch (error) {
+    console.error('B2 authorization failed:', error);
+    throw error;
+  }
+}
 
 /**
  * Python script'ini çalıştırır ve sonucu döndürür
@@ -187,44 +219,54 @@ app.get('/api/turkanime/anime/:slug', async (req, res) => {
 
 /**
  * POST /api/turkanime/import-episode
- * Bir bölümü TürkAnime'den çekip Bunny CDN'e yükle
- * Body: { animeSlug, episodeSlug, uploadedBy }
+ * Bir bölümü TürkAnime'den çekip B2'ye yükle
+ * Body: { animeSlug, episodeSlug, uploadedBy, fansub, b2Folder, seasonNumber }
  */
 app.post('/api/turkanime/import-episode', async (req, res) => {
   try {
-    const { animeSlug, episodeSlug, uploadedBy, fansub } = req.body;
+    const { animeSlug, episodeSlug, uploadedBy, fansub, b2Folder, seasonNumber } = req.body;
     
     if (!animeSlug || !episodeSlug) {
       return res.status(400).json({ error: 'animeSlug and episodeSlug are required' });
     }
     
-    console.log('\n📥 Episode Import Request:');
+    console.log('\n📥 Episode Import Request (B2):');
     console.log('  Anime:', animeSlug);
     console.log('  Episode:', episodeSlug);
+    console.log('  B2 Folder:', b2Folder || `${animeSlug}-season-${seasonNumber || 1}`);
+    console.log('  Season:', seasonNumber || 1);
     console.log('  Uploaded By:', uploadedBy || 'admin');
     console.log('  Fansub:', fansub || uploadedBy || 'admin');
     
     // Hemen yanıt ver (async olarak çalışacak)
     res.json({
       success: true,
-      message: 'Import başlatıldı, arka planda çalışıyor...',
+      message: 'Import başlatıldı, B2\'ye yükleniyor...',
       status: 'processing'
     });
     
-    // Python script'ini arka planda çalıştır
-    const scriptPath = path.join(__dirname, 'turkanime-helpers', 'import_episode.py');
-    const scriptArgs = [animeSlug, episodeSlug, uploadedBy || 'admin'];
+    // Python script'ini arka planda çalıştır (Bunny Encode → R2 Storage)
+    const scriptPath = path.join(__dirname, '..', '..', 'bunny_scripts', 'turkanime_bunny_to_r2.py');
+    
+    // R2 folder belirle
+    const targetR2Folder = b2Folder || `${animeSlug}-season-${seasonNumber || 1}`;
+    
+    const scriptArgs = [
+      '--anime', animeSlug,
+      '--episode', episodeSlug,
+      '--r2-folder', targetR2Folder
+    ];
     
     // Fansub parametresi varsa ekle
     if (fansub) {
-      scriptArgs.push(fansub);
+      scriptArgs.push('--fansub', fansub);
     }
     
     runPythonScript(scriptPath, scriptArgs)
       .then(result => {
-        console.log('✅ Import completed:', result.success ? 'SUCCESS' : 'FAILED');
-        if (result.videoId) {
-          console.log('  Video ID:', result.videoId);
+        console.log('✅ R2 Import completed:', result.success ? 'SUCCESS' : 'FAILED');
+        if (result.r2_url) {
+          console.log('  R2 URL:', result.r2_url);
         }
         if (!result.success && result.error) {
           console.log('  ❌ Error:', result.error);
@@ -234,7 +276,7 @@ app.post('/api/turkanime/import-episode', async (req, res) => {
         }
       })
       .catch(error => {
-        console.error('❌ Import failed:', error.message);
+        console.error('❌ R2 Import failed:', error.message);
       });
     
   } catch (error) {
@@ -483,14 +525,29 @@ app.post('/api/anime/upload-cover', upload.single('cover'), (req, res) => {
 
 /**
  * POST /api/anime/create
- * Yeni anime metadata'sı oluştur (collection oluşturmaz, sadece kaydeder)
+ * Yeni anime metadata'sı oluştur (sezon bazlı B2 folder ile)
  */
 app.post('/api/anime/create', async (req, res) => {
   try {
-    const { name, collectionId, description, genres, year, status, createdBy, coverImage } = req.body;
+    const { name, seasons, b2Folder, collectionId, description, genres, year, status, createdBy, coverImage } = req.body;
     
-    if (!name || !collectionId) {
-      return res.status(400).json({ error: 'Name and collectionId are required' });
+    // Yeni format: seasons array veya eski format: b2Folder/collectionId
+    let seasonsData = seasons;
+    if (!seasonsData && (b2Folder || collectionId)) {
+      // Backward compatibility: eski formatı yeni formata çevir
+      seasonsData = [{
+        seasonNumber: 1,
+        b2Folder: b2Folder || null,
+        collectionId: collectionId || null,
+        totalEpisodes: 0
+      }];
+    }
+    
+    if (!name || !seasonsData || seasonsData.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Name and at least one season are required' 
+      });
     }
     
     // LocalStorage benzeri bir JSON dosyasına kaydet
@@ -518,18 +575,60 @@ app.post('/api/anime/create', async (req, res) => {
       });
     }
     
+    // Her sezon için B2'den bölüm sayısını otomatik çek
+    const bucketId = process.env.VITE_B2_BUCKET_ID;
+    if (bucketId) {
+      try {
+        await authorizeB2();
+        
+        for (let season of seasonsData) {
+          if (season.b2Folder) {
+            // B2'den bu klasördeki Episode-X klasörlerini say
+            const response = await b2.listFileNames({
+              bucketId: bucketId,
+              maxFileCount: 10000,
+              prefix: `${season.b2Folder}/`
+            });
+            
+            // Episode-X klasörlerini say
+            const episodeFolders = new Set();
+            if (response.data.files) {
+              response.data.files.forEach(file => {
+                // Episode X veya Episode-X formatını yakala (boşluk veya tire ile)
+                const match = file.fileName.match(/Episode[\s\-](\d+)/i);
+                if (match) {
+                  episodeFolders.add(parseInt(match[1]));
+                }
+              });
+            }
+            
+            season.totalEpisodes = episodeFolders.size;
+            console.log(`📊 Sezon ${season.seasonNumber} (${season.b2Folder}): ${season.totalEpisodes} bölüm bulundu`);
+          }
+        }
+      } catch (error) {
+        console.error('B2 episode count error:', error);
+        // Hata olursa 0 olarak devam et
+        seasonsData.forEach(s => s.totalEpisodes = s.totalEpisodes || 0);
+      }
+    }
+    
     // Yeni anime ekle
     const newAnime = {
       id: Date.now().toString(),
       name,
-      collectionId,
+      seasons: seasonsData,
       description: description || '',
       genres: genres || [],
       year: year || new Date().getFullYear(),
       status: status || 'ongoing',
       coverImage: coverImage || '',
       createdBy: createdBy || 'admin',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      // Backward compatibility fields
+      b2Folder: seasonsData[0]?.b2Folder || null,
+      collectionId: seasonsData[0]?.collectionId || null,
+      totalEpisodes: seasonsData.reduce((sum, s) => sum + (s.totalEpisodes || 0), 0)
     };
     
     animes.push(newAnime);
@@ -544,7 +643,7 @@ app.post('/api/anime/create', async (req, res) => {
     });
   } catch (error) {
     console.error('Create anime error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -803,6 +902,246 @@ app.delete('/api/list/:listId/remove-anime/:animeSlug', (req, res) => {
   }
 });
 
+/**
+ * GET /api/b2/folders
+ * B2'deki tüm klasörleri listele
+ */
+app.get('/api/b2/folders', async (req, res) => {
+  try {
+    await authorizeB2();
+    
+    const bucketId = process.env.VITE_B2_BUCKET_ID;
+    if (!bucketId) {
+      return res.status(500).json({ success: false, error: 'B2 Bucket ID not configured' });
+    }
+
+    // B2'den dosyaları listele
+    const response = await b2.listFileNames({
+      bucketId: bucketId,
+      maxFileCount: 10000,
+      prefix: '',
+      delimiter: '/'
+    });
+
+    // Klasör isimlerini çıkar (prefix'leri)
+    const folders = new Set();
+    
+    if (response.data.files) {
+      response.data.files.forEach(file => {
+        const parts = file.fileName.split('/');
+        if (parts.length > 1) {
+          folders.add(parts[0]);
+        }
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      folders: Array.from(folders).sort() 
+    });
+  } catch (error) {
+    console.error('B2 folders list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/b2/anime/:slug/season/:num
+ * Belirli bir anime'nin belirli sezonundaki bölümleri listele
+ */
+app.get('/api/b2/anime/:slug/season/:num', async (req, res) => {
+  try {
+    await authorizeB2();
+    
+    const { slug, num } = req.params;
+    const bucketId = process.env.VITE_B2_BUCKET_ID;
+    
+    if (!bucketId) {
+      return res.status(500).json({ success: false, error: 'B2 Bucket ID not configured' });
+    }
+
+    // Anime'yi bul ve sezon bilgisini al
+    const animesPath = path.join(__dirname, 'data', 'animes.json');
+    let b2Folder = null;
+    
+    if (fs.existsSync(animesPath)) {
+      const data = fs.readFileSync(animesPath, 'utf8');
+      const animes = JSON.parse(data);
+      const anime = animes.find(a => 
+        a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === slug.toLowerCase()
+      );
+      
+      if (anime && anime.seasons) {
+        const season = anime.seasons.find(s => s.seasonNumber === parseInt(num));
+        if (season && season.b2Folder) {
+          b2Folder = season.b2Folder;
+        }
+      }
+    }
+    
+    if (!b2Folder) {
+      return res.status(404).json({ success: false, error: 'Season not found or B2 folder not configured' });
+    }
+
+    // B2'den dosyaları listele (b2Folder/Episode-X/ formatında)
+    const response = await b2.listFileNames({
+      bucketId: bucketId,
+      maxFileCount: 10000,
+      prefix: `${b2Folder}/`
+    });
+
+    // Bölümleri parse et
+    const episodes = [];
+    const episodeMap = new Map(); // Her episode için en iyi dosyayı sakla
+    
+    if (response.data.files) {
+      console.log(`📁 B2'den ${response.data.files.length} dosya bulundu`);
+      
+      // Tüm benzersiz episode numaralarını topla
+      const allEpisodeNumbers = new Set();
+      
+      response.data.files.forEach(file => {
+        // Episode X veya Episode-X formatını yakala (boşluk veya tire ile)
+        const episodeMatch = file.fileName.match(/Episode[\s\-](\d+)/i);
+        if (episodeMatch) {
+          allEpisodeNumbers.add(parseInt(episodeMatch[1]));
+        }
+      });
+      
+      console.log(`📊 Toplam ${allEpisodeNumbers.size} benzersiz episode bulundu`);
+      
+      response.data.files.forEach(file => {
+        // .m3u8 dosyalarını bul (playlist, master, index vb.)
+        if (file.fileName.endsWith('.m3u8')) {
+          // Episode X veya Episode-X formatını yakala (boşluk veya tire ile)
+          const episodeMatch = file.fileName.match(/Episode[\s\-](\d+)/i);
+          if (episodeMatch) {
+            const episodeNum = parseInt(episodeMatch[1]);
+            const downloadUrl = `${b2Auth.downloadUrl}/file/${process.env.VITE_B2_BUCKET_NAME}/${file.fileName}`;
+            
+            // Öncelik sırası: playlist.m3u8 > master.m3u8 > index.m3u8 > diğer .m3u8
+            const priority = file.fileName.endsWith('playlist.m3u8') ? 4 :
+                           file.fileName.endsWith('master.m3u8') ? 3 :
+                           file.fileName.endsWith('index.m3u8') ? 2 : 1;
+            
+            // Bu episode için daha iyi bir dosya varsa güncelle
+            const existing = episodeMap.get(episodeNum);
+            if (!existing || priority > existing.priority) {
+              episodeMap.set(episodeNum, {
+                episode: episodeNum,
+                url: downloadUrl,
+                fileName: file.fileName,
+                size: file.contentLength,
+                priority: priority
+              });
+            }
+          }
+        }
+      });
+      
+      // Map'ten array'e çevir
+      episodeMap.forEach(ep => {
+        episodes.push({
+          episode: ep.episode,
+          url: ep.url,
+          fileName: ep.fileName,
+          size: ep.size
+        });
+      });
+    }
+
+    // Bölüm numarasına göre sırala
+    episodes.sort((a, b) => a.episode - b.episode);
+
+    console.log(`📺 ${slug} Sezon ${num}: ${episodes.length} bölüm bulundu (${b2Folder})`);
+
+    res.json({ 
+      success: true, 
+      episodes: episodes,
+      season: parseInt(num),
+      slug: slug,
+      b2Folder: b2Folder
+    });
+  } catch (error) {
+    console.error('B2 episodes list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/r2/anime/:slug/season/:num
+ * R2'den belirli bir anime'nin sezonundaki bölümleri listele
+ */
+app.get('/api/r2/anime/:slug/season/:num', async (req, res) => {
+  try {
+    const { slug, num } = req.params;
+    const r2PublicUrl = process.env.R2_PUBLIC_URL;
+    
+    if (!r2PublicUrl) {
+      return res.status(500).json({ success: false, error: 'R2 Public URL not configured' });
+    }
+
+    // Anime'yi bul ve sezon bilgisini al
+    const animesPath = path.join(__dirname, 'data', 'animes.json');
+    let r2Folder = null;
+    
+    if (fs.existsSync(animesPath)) {
+      const data = fs.readFileSync(animesPath, 'utf8');
+      const animes = JSON.parse(data);
+      const anime = animes.find(a => 
+        a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === slug.toLowerCase()
+      );
+      
+      if (anime && anime.seasons) {
+        const season = anime.seasons.find(s => s.seasonNumber === parseInt(num));
+        if (season && season.r2Folder) {
+          r2Folder = season.r2Folder;
+        }
+      }
+    }
+    
+    if (!r2Folder) {
+      return res.status(404).json({ success: false, error: 'Season not found or R2 folder not configured' });
+    }
+
+    // R2'den bölümleri listele (basit public URL yaklaşımı)
+    // Not: R2'de dosya listeleme için S3 API kullanılmalı, bu basitleştirilmiş versiyon
+    const episodes = [];
+    
+    // Örnek: Episode 1-100 arası kontrol et (gerçek implementasyonda S3 API kullanılmalı)
+    for (let i = 1; i <= 100; i++) {
+      const playlistUrl = `${r2PublicUrl}/${r2Folder}/Episode ${i}/playlist.m3u8`;
+      
+      // HEAD request ile dosya var mı kontrol et
+      try {
+        const response = await fetch(playlistUrl, { method: 'HEAD' });
+        if (response.ok) {
+          episodes.push({
+            episode: i,
+            url: playlistUrl,
+            fileName: `Episode ${i}/playlist.m3u8`
+          });
+        }
+      } catch (e) {
+        // Dosya yok, devam et
+      }
+    }
+
+    console.log(`📺 ${slug} Sezon ${num}: ${episodes.length} bölüm bulundu (R2: ${r2Folder})`);
+
+    res.json({ 
+      success: true, 
+      episodes: episodes,
+      season: parseInt(num),
+      slug: slug,
+      r2Folder: r2Folder
+    });
+  } catch (error) {
+    console.error('R2 episodes list error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 TürkAnime API running on http://localhost:${PORT}`);
   console.log(`📁 Python scripts directory: ${PYTHON_SCRIPTS_DIR}`);
@@ -822,92 +1161,6 @@ app.listen(PORT, () => {
   console.log(`  POST /api/list/:listId/add-anime`);
   console.log(`  DELETE /api/list/:listId/remove-anime/:slug`);
   console.log(`  GET  /api/b2/folders`);
-  console.log(`  GET  /api/b2/anime/:animeSlug/season/:seasonNumber`);
-});
-
-/**
- * GET /api/b2/folders
- * B2'deki anime klasörlerini listele
- */
-app.get('/api/b2/folders', async (req, res) => {
-  try {
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
-    
-    // B2 CLI ile klasörleri listele
-    const { stdout } = await execPromise('b2 ls kudopy');
-    
-    // Klasörleri parse et
-    const folders = stdout
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => {
-        const parts = line.trim().split(/\s+/);
-        return parts[parts.length - 1]; // Son kısım klasör adı
-      })
-      .filter(name => name && !name.includes('.'));
-    
-    res.json({ success: true, folders });
-  } catch (error) {
-    console.error('B2 folders error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-/**
- * GET /api/b2/anime/:animeSlug/season/:seasonNumber
- * B2'den belirli bir anime sezonunun bölümlerini getir
- */
-app.get('/api/b2/anime/:animeSlug/season/:seasonNumber', async (req, res) => {
-  try {
-    const { animeSlug, seasonNumber } = req.params;
-    
-    // Anime adını slug'dan oluştur
-    const animeName = animeSlug
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-    
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
-    
-    // B2'de klasör yapısı: "Anime Name Season X/Episode Y/"
-    const seasonFolder = `${animeName} Season ${seasonNumber}`;
-    
-    // B2 CLI ile bölümleri listele
-    const { stdout } = await execPromise(`b2 ls kudopy "${seasonFolder}/"`);
-    
-    // Bölümleri parse et
-    const episodes = [];
-    const lines = stdout.split('\n').filter(line => line.trim());
-    
-    for (const line of lines) {
-      const parts = line.trim().split(/\s+/);
-      const folderName = parts[parts.length - 1];
-      
-      if (folderName && folderName.startsWith('Episode ')) {
-        const episodeNum = parseInt(folderName.replace('Episode ', '').replace('/', ''));
-        episodes.push({
-          number: episodeNum,
-          title: `Episode ${episodeNum}`,
-          path: `${seasonFolder}/Episode ${episodeNum}`,
-        });
-      }
-    }
-    
-    // Episode numarasına göre sırala
-    episodes.sort((a, b) => a.number - b.number);
-    
-    res.json({
-      success: true,
-      anime: { name: animeName, slug: animeSlug },
-      season: parseInt(seasonNumber),
-      episodes,
-    });
-  } catch (error) {
-    console.error('B2 anime season error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+  console.log(`  GET  /api/b2/anime/:slug/season/:num`);
+  console.log(`  GET  /api/r2/anime/:slug/season/:num`);
 });

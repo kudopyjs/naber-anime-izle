@@ -107,6 +107,21 @@ class B2Uploader:
             return len(list(file_versions)) > 0
         except:
             return False
+    
+    def check_episode_exists(self, b2_prefix: str) -> bool:
+        """Bölüm klasörü B2'de tam olarak var mı kontrol et (playlist + metadata)"""
+        try:
+            # Playlist ve metadata dosyalarını kontrol et
+            playlist_path = f"{b2_prefix}/playlist.m3u8"
+            metadata_path = f"{b2_prefix}/metadata.json"
+            
+            # Her iki dosya da varsa bölüm tamam demektir
+            playlist_exists = self.file_exists(playlist_path)
+            metadata_exists = self.file_exists(metadata_path)
+            
+            return playlist_exists and metadata_exists
+        except:
+            return False
 
 
 class VideoEncoder:
@@ -296,9 +311,9 @@ class TurkAnimeToB2:
                 episode_folder = f"Episode {ep_num}"
                 b2_prefix = f"{collection_name}/{episode_folder}"
                 
-                # B2'de zaten var mı kontrol et
-                if self.b2.file_exists(f"{b2_prefix}/playlist.m3u8"):
-                    print("⏭️  Video zaten B2'de var, atlanıyor...")
+                # B2'de zaten var mı kontrol et (playlist + metadata)
+                if self.b2.check_episode_exists(b2_prefix):
+                    print(f"⏭️  Bölüm {ep_num} zaten B2'de var (playlist + metadata), atlanıyor...")
                     self.stats["skipped"] += 1
                     continue
                 
@@ -329,7 +344,8 @@ class TurkAnimeToB2:
         self._print_summary()
     
     def transfer_anime(self, anime_slug: str, start_ep: int = 1, end_ep: int = None,
-                      season: int = 1, fansub: str = None, quality_priority: bool = True):
+                      season: int = 1, fansub: str = None, quality_priority: bool = True,
+                      b2_folder_override: str = None):
         """Anime bölümlerini B2'ye aktar"""
         
         print(f"\n🎬 Anime: {anime_slug}")
@@ -343,11 +359,15 @@ class TurkAnimeToB2:
             print(f"📊 Toplam bölüm: {len(anime.bolumler)}")
         except Exception as e:
             print(f"❌ Anime bulunamadı: {e}")
-            return
+            return {"success": False, "error": str(e)}
         
-        # Collection (folder) adı
-        collection_name = f"{anime.title} Season {season}"
-        print(f"\n📁 Collection: {collection_name}")
+        # Collection (folder) adı - override varsa onu kullan
+        if b2_folder_override:
+            collection_name = b2_folder_override
+            print(f"\n📁 B2 Folder (override): {collection_name}")
+        else:
+            collection_name = f"{anime.title} Season {season}"
+            print(f"\n📁 Collection: {collection_name}")
         
         # Bölüm aralığını belirle
         if end_ep is None:
@@ -368,9 +388,9 @@ class TurkAnimeToB2:
                 episode_folder = f"Episode {i}"
                 b2_prefix = f"{collection_name}/{episode_folder}"
                 
-                # B2'de zaten var mı kontrol et
-                if self.b2.file_exists(f"{b2_prefix}/playlist.m3u8"):
-                    print("⏭️  Video zaten B2'de var, atlanıyor...")
+                # B2'de zaten var mı kontrol et (playlist + metadata)
+                if self.b2.check_episode_exists(b2_prefix):
+                    print(f"⏭️  Bölüm {i} zaten B2'de var (playlist + metadata), atlanıyor...")
                     self.stats["skipped"] += 1
                     continue
                 
@@ -433,6 +453,15 @@ class TurkAnimeToB2:
         
         # Özet
         self._print_summary()
+        
+        # Return sonuç
+        return {
+            "success": self.stats["success"] > 0,
+            "total": self.stats["total"],
+            "success_count": self.stats["success"],
+            "failed_count": self.stats["failed"],
+            "skipped_count": self.stats["skipped"]
+        }
     
     def _download_with_aria2c(self, url: str, output_path: str) -> bool:
         """aria2c ile çok hızlı indirme (16 paralel bağlantı)"""
@@ -687,10 +716,12 @@ def main():
     parser.add_argument("--list", action="store_true", help="Tüm animeleri listele")
     parser.add_argument("--json", type=str, help="JSON dosyasından URL'leri oku (EN PRATİK!)")
     parser.add_argument("--anime", type=str, help="Anime slug (örn: naruto)")
+    parser.add_argument("--episode", type=str, help="Tek bölüm slug (örn: naruto-1-bolum)")
     parser.add_argument("--start", type=int, default=1, help="Başlangıç bölümü")
     parser.add_argument("--end", type=int, help="Bitiş bölümü")
     parser.add_argument("--all", action="store_true", help="Tüm bölümleri aktar")
     parser.add_argument("--season", type=int, default=1, help="Sezon numarası")
+    parser.add_argument("--b2-folder", type=str, help="B2 klasör adı (örn: naruto-season-1)")
     parser.add_argument("--fansub", type=str, help="Tercih edilen fansub")
     parser.add_argument("--no-quality", action="store_true", help="Kalite önceliğini kapat")
     
@@ -700,6 +731,45 @@ def main():
     
     if args.list:
         transfer.list_all_anime()
+    elif args.episode:
+        # Tek bölüm import (API'den çağrılır)
+        print(f"📥 Tek bölüm import: {args.episode}")
+        
+        # Episode slug'dan bölüm numarasını çıkar
+        # Format: anime-slug-X-bolum
+        parts = args.episode.rsplit('-', 2)
+        if len(parts) >= 2 and parts[-1] == 'bolum':
+            episode_num = int(parts[-2])
+            anime_slug = '-'.join(parts[:-2])
+        else:
+            print(f"❌ Geçersiz episode slug formatı: {args.episode}")
+            print("   Beklenen format: anime-slug-1-bolum")
+            sys.exit(1)
+        
+        # B2 folder belirle
+        b2_folder = args.b2_folder or f"{anime_slug}-season-{args.season}"
+        
+        print(f"  Anime: {anime_slug}")
+        print(f"  Bölüm: {episode_num}")
+        print(f"  B2 Folder: {b2_folder}")
+        
+        # Transfer et
+        result = transfer.transfer_anime(
+            anime_slug=anime_slug,
+            start_ep=episode_num,
+            end_ep=episode_num,
+            season=args.season,
+            fansub=args.fansub,
+            quality_priority=not args.no_quality,
+            b2_folder_override=b2_folder
+        )
+        
+        # JSON output (API için)
+        print(json.dumps({
+            "success": result.get("success", False),
+            "episode": episode_num,
+            "b2_folder": b2_folder
+        }))
     elif args.json:
         # JSON dosyasından aktar (EN PRATİK!)
         transfer.transfer_from_json(args.json, season=args.season)

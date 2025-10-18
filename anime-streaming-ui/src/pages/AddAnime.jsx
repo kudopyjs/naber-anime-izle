@@ -10,17 +10,20 @@ function AddAnime() {
   const navigate = useNavigate()
   const { user, canManageServer } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [loadingCollections, setLoadingCollections] = useState(true)
-  const [collections, setCollections] = useState([])
+  const [loadingFolders, setLoadingFolders] = useState(true)
+  const [b2Folders, setB2Folders] = useState([])
   const [animeData, setAnimeData] = useState({
     name: '',
-    collectionId: '',
     description: '',
     genres: [],
     year: new Date().getFullYear(),
     status: 'ongoing',
     coverImage: ''
   })
+  const [seasons, setSeasons] = useState([{
+    seasonNumber: 1,
+    b2Folder: ''
+  }])
   const [coverFile, setCoverFile] = useState(null)
   const [coverPreview, setCoverPreview] = useState('')
   const [uploadingCover, setUploadingCover] = useState(false)
@@ -29,24 +32,24 @@ function AddAnime() {
   const [nameWarning, setNameWarning] = useState('')
   const [checkingName, setCheckingName] = useState(false)
 
-  // Load Bunny collections
+  // Load B2 folders
   useEffect(() => {
-    loadCollections()
+    loadB2Folders()
   }, [])
 
-  const loadCollections = async () => {
+  const loadB2Folders = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/bunny/collections`)
+      const response = await fetch(`${API_BASE_URL}/b2/folders`)
       const data = await response.json()
       
       if (data.success) {
-        setCollections(data.collections || [])
+        setB2Folders(data.folders || [])
       }
     } catch (err) {
-      console.error('Error loading collections:', err)
-      setError('Collectionlar yüklenemedi')
+      console.error('Error loading B2 folders:', err)
+      setError('B2 klasörleri yüklenemedi')
     } finally {
-      setLoadingCollections(false)
+      setLoadingFolders(false)
     }
   }
 
@@ -85,7 +88,11 @@ function AddAnime() {
     if (!coverFile) return null
 
     setUploadingCover(true)
+    setError('') // Clear previous errors
+    
     try {
+      console.log('📤 Uploading cover:', coverFile.name, 'Size:', (coverFile.size / 1024 / 1024).toFixed(2), 'MB')
+      
       const formData = new FormData()
       formData.append('cover', coverFile)
       formData.append('animeName', animeData.name) // Anime adını gönder
@@ -95,15 +102,24 @@ function AddAnime() {
         body: formData
       })
 
+      console.log('📥 Upload response status:', response.status)
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
       const result = await response.json()
+      console.log('📦 Upload result:', result)
+      
       if (result.success) {
-        console.log('Cover uploaded to folder:', result.folderName)
+        console.log('✅ Cover uploaded to folder:', result.folderName)
         return result.coverUrl
       } else {
         throw new Error(result.error || 'Görsel yüklenemedi')
       }
     } catch (err) {
-      console.error('Cover upload error:', err)
+      console.error('❌ Cover upload error:', err)
+      setError(`Görsel yükleme hatası: ${err.message}`)
       throw err
     } finally {
       setUploadingCover(false)
@@ -123,7 +139,7 @@ function AddAnime() {
         coverUrl = await uploadCover()
       }
 
-      // Anime metadata'sını kaydet (collection oluşturmaz)
+      // Anime metadata'sını kaydet (sezon bilgileri ile)
       const response = await fetch(`${API_BASE_URL}/anime/create`, {
         method: 'POST',
         headers: {
@@ -131,7 +147,7 @@ function AddAnime() {
         },
         body: JSON.stringify({
           name: animeData.name,
-          collectionId: animeData.collectionId,
+          seasons: seasons,
           description: animeData.description,
           genres: animeData.genres,
           year: animeData.year,
@@ -148,12 +164,17 @@ function AddAnime() {
         // Form'u temizle
         setAnimeData({
           name: '',
-          collectionId: '',
           description: '',
           genres: [],
           year: new Date().getFullYear(),
           status: 'ongoing'
         })
+        setSeasons([{
+          seasonNumber: 1,
+          b2Folder: ''
+        }])
+        setCoverFile(null)
+        setCoverPreview('')
         
         // 2 saniye sonra admin panele yönlendir
         setTimeout(() => {
@@ -212,6 +233,32 @@ function AddAnime() {
     }
   }
 
+  // Sezon yönetimi fonksiyonları
+  const handleSeasonChange = (index, field, value) => {
+    const newSeasons = [...seasons]
+    newSeasons[index][field] = value
+    setSeasons(newSeasons)
+  }
+
+  const addSeason = () => {
+    const newSeasonNumber = seasons.length + 1
+    setSeasons([...seasons, {
+      seasonNumber: newSeasonNumber,
+      b2Folder: ''
+    }])
+  }
+
+  const removeSeason = (index) => {
+    if (seasons.length > 1) {
+      const newSeasons = seasons.filter((_, i) => i !== index)
+      // Sezon numaralarını yeniden düzenle
+      newSeasons.forEach((season, i) => {
+        season.seasonNumber = i + 1
+      })
+      setSeasons(newSeasons)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background-dark">
       <Navbar />
@@ -231,7 +278,7 @@ function AddAnime() {
             </button>
             <h1 className="text-4xl font-bold text-white mb-2">Yeni Anime Ekle</h1>
             <p className="text-white/60">
-              Bunny.net'te yeni bir anime collection'ı oluşturun
+              B2 Storage'da bulunan anime klasörünü kaydedin
             </p>
           </div>
 
@@ -261,36 +308,6 @@ function AddAnime() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="glassmorphic rounded-xl p-6 space-y-6">
-            {/* Collection Selection */}
-            <div>
-              <label className="block text-white font-semibold mb-2">
-                Bunny Collection <span className="text-red-400">*</span>
-              </label>
-              {loadingCollections ? (
-                <div className="px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white/60">
-                  Collectionlar yükleniyor...
-                </div>
-              ) : (
-                <select
-                  name="collectionId"
-                  value={animeData.collectionId}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary"
-                  required
-                >
-                  <option value="">Collection seçin...</option>
-                  {collections.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name} ({collection.videoCount} video)
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p className="text-white/40 text-sm mt-1">
-                Bu anime hangi Bunny collection'ına ait?
-              </p>
-            </div>
-
             {/* Anime Name */}
             <div>
               <label className="block text-white font-semibold mb-2">
@@ -322,7 +339,7 @@ function AddAnime() {
                 </p>
               ) : (
                 <p className="text-white/40 text-sm mt-1">
-                  Bu isim Bunny.net'te collection adı olarak kullanılacak
+                  Bu isim anime detay sayfasında görünecek
                 </p>
               )}
             </div>
@@ -403,6 +420,71 @@ function AddAnime() {
               />
             </div>
 
+            {/* Seasons Management */}
+            <div className="border-t border-white/10 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-white font-semibold text-lg">
+                  Sezonlar <span className="text-red-400">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={addSeason}
+                  className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary font-semibold rounded-lg transition-colors text-sm"
+                >
+                  ➕ Yeni Sezon Ekle
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {seasons.map((season, index) => (
+                  <div key={index} className="bg-black/20 border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-white font-semibold">Sezon {season.seasonNumber}</h4>
+                      {seasons.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeSeason(index)}
+                          className="text-red-400 hover:text-red-300 text-sm transition-colors"
+                        >
+                          🗑️ Sil
+                        </button>
+                      )}
+                    </div>
+
+                    {/* B2 Folder Selection */}
+                    <div>
+                      <label className="block text-white/80 text-sm mb-2">
+                        B2 Klasörü <span className="text-red-400">*</span>
+                      </label>
+                      {loadingFolders ? (
+                        <div className="px-3 py-2 bg-black/30 border border-white/10 rounded text-white/60 text-sm">
+                          Yükleniyor...
+                        </div>
+                      ) : (
+                        <select
+                          value={season.b2Folder}
+                          onChange={(e) => handleSeasonChange(index, 'b2Folder', e.target.value)}
+                          className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-primary"
+                          required
+                        >
+                          <option value="">Klasör seçin...</option>
+                          {b2Folders.map((folder) => (
+                            <option key={folder} value={folder}>
+                              📁 {folder}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <p className="text-white/40 text-xs mt-2">
+                      📂 Klasör yapısı: {season.b2Folder || 'anime-slug'}/Episode-1, Episode-2, ...
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Year & Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -448,7 +530,7 @@ function AddAnime() {
               </button>
               <button
                 type="submit"
-                disabled={loading || uploadingCover || !animeData.name || !animeData.collectionId || !coverFile || nameWarning || checkingName}
+                disabled={loading || uploadingCover || !animeData.name || !coverFile || nameWarning || checkingName || seasons.some(s => !s.b2Folder)}
                 className="flex-1 px-6 py-3 bg-primary hover:bg-primary/80 text-background-dark font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploadingCover ? '📤 Görsel Yükleniyor...' : loading ? '🔄 Kaydediliyor...' : checkingName ? '🔍 Kontrol ediliyor...' : '✓ Anime Kaydet'}
@@ -460,10 +542,11 @@ function AddAnime() {
           <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
             <h3 className="text-blue-400 font-semibold mb-2">ℹ️ Bilgi</h3>
             <ul className="text-blue-400/80 text-sm space-y-1">
-              <li>• Önce Bunny.net'te collection oluşturulmalı</li>
-              <li>• Bu sayfa sadece anime metadata'sını kaydeder</li>
-              <li>• Anime oluşturulduktan sonra "Toplu Anime Ekle" sekmesinden bölüm ekleyebilirsiniz</li>
+              <li>• Önce B2 Storage'a video dosyaları yüklenmiş olmalı</li>
+              <li>• Her sezon için ayrı B2 klasörü seçebilirsiniz</li>
+              <li>• B2 klasör yapısı: <code className="bg-black/30 px-1 rounded">anime-slug/Episode-1</code>, <code className="bg-black/30 px-1 rounded">Episode-2</code>, ...</li>
               <li>• Anime adı benzersiz olmalıdır</li>
+              <li>• Yeni sezon eklemek için "➕ Yeni Sezon Ekle" butonunu kullanın</li>
             </ul>
           </div>
         </motion.div>

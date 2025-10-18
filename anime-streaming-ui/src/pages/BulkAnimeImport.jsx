@@ -15,6 +15,8 @@ function BulkAnimeImport() {
   const [selectedEpisodes, setSelectedEpisodes] = useState([])
   const [importStatus, setImportStatus] = useState({})
   const [selectedFansub, setSelectedFansub] = useState('')
+  const [b2Folder, setB2Folder] = useState('')
+  const [seasonNumber, setSeasonNumber] = useState(1)
 
   // TürkAnime API'sinden anime listesi çek
   const searchAnime = async () => {
@@ -122,7 +124,7 @@ function BulkAnimeImport() {
           [episodeSlug]: { status: 'processing', progress: 0, message: 'Video indiriliyor ve yükleniyor...' }
         }))
 
-        // Backend'e bölüm import isteği gönder
+        // Backend'e bölüm import isteği gönder (B2)
         const response = await fetch(`${API_BASE_URL}/turkanime/import-episode`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -130,7 +132,9 @@ function BulkAnimeImport() {
             animeSlug: selectedAnime,
             episodeSlug: episodeSlug,
             uploadedBy: user.username,
-            fansub: selectedFansub || user.username
+            fansub: selectedFansub || user.username,
+            b2Folder: b2Folder || `${selectedAnime}-season-${seasonNumber}`,
+            seasonNumber: seasonNumber
           })
         })
 
@@ -258,21 +262,54 @@ function BulkAnimeImport() {
                   </div>
                 </div>
 
-                {/* Fansub Seçimi */}
-                <div className="bg-black/30 rounded-lg p-4 mb-4">
-                  <label className="block text-white font-semibold mb-2">
-                    📝 Fansub / Çevirmen
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedFansub}
-                    onChange={(e) => setSelectedFansub(e.target.value)}
-                    placeholder={`Varsayılan: ${user.username}`}
-                    className="w-full px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary"
-                  />
-                  <p className="text-white/50 text-sm mt-2">
-                    Boş bırakılırsa kullanıcı adınız ({user.username}) kullanılacak
-                  </p>
+                {/* B2 Ayarları */}
+                <div className="bg-black/30 rounded-lg p-4 mb-4 space-y-4">
+                  <h3 className="text-white font-bold text-lg">⚙️ Yükleme Ayarları (B2)</h3>
+                  
+                  {/* Season Number */}
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
+                      📺 Sezon Numarası
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={seasonNumber}
+                      onChange={(e) => setSeasonNumber(parseInt(e.target.value) || 1)}
+                      className="w-full px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  {/* B2 Folder */}
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
+                      📁 B2 Klasör Adı (Opsiyonel)
+                    </label>
+                    <input
+                      type="text"
+                      value={b2Folder}
+                      onChange={(e) => setB2Folder(e.target.value)}
+                      placeholder={`Varsayılan: ${selectedAnime}-season-${seasonNumber}`}
+                      className="w-full px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-white/50 text-sm mt-2">
+                      Boş bırakılırsa otomatik oluşturulur
+                    </p>
+                  </div>
+
+                  {/* Fansub */}
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
+                      📝 Fansub / Çevirmen
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedFansub}
+                      onChange={(e) => setSelectedFansub(e.target.value)}
+                      placeholder={`Varsayılan: ${user.username}`}
+                      className="w-full px-4 py-2 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary"
+                    />
+                  </div>
                 </div>
 
                 {/* Bölüm Seçimi */}

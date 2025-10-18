@@ -28,57 +28,41 @@ function AnimeDetail() {
     setError('')
     
     try {
-      // 1. Anime metadata'sını anime.json'dan al
+      // Anime metadata'sını anime.json'dan al
       const animeListResponse = await fetch(`${API_BASE_URL}/anime/list`)
       const animeListData = await animeListResponse.json()
       
-      // 2. Bunny sync data'dan sezon bilgilerini al
-      const syncResponse = await fetch(`${API_BASE_URL}/bunny/sync-data`)
-      const syncData = await syncResponse.json()
-      
-      if (animeListData.success && syncData.success) {
-        // Anime slug'a göre anime bul (metadata için)
-        const animeMetadata = animeListData.animes.find(a => 
+      if (animeListData.success) {
+        // Anime slug'a göre anime bul
+        const foundAnime = animeListData.animes.find(a => 
           a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === animeSlug.toLowerCase()
         )
         
-        // Bunny sync'ten sezon bilgilerini al
-        const syncedAnime = syncData.animes.find(a => 
-          a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === animeSlug.toLowerCase()
-        )
-        
-        if (!animeMetadata && !syncedAnime) {
+        if (!foundAnime) {
           setError('Anime bulunamadı')
           setLoading(false)
           return
         }
         
-        // Metadata ve sezon bilgilerini birleştir
-        const combinedAnime = {
-          ...(animeMetadata || {}),
-          ...(syncedAnime || {}),
-          // Metadata'dan gelen bilgiler öncelikli
-          name: animeMetadata?.name || syncedAnime?.name,
-          description: animeMetadata?.description,
-          genres: animeMetadata?.genres,
-          status: animeMetadata?.status,
-          year: animeMetadata?.year,
-          rating: animeMetadata?.rating,
-          coverImage: animeMetadata?.coverImage,
-          createdBy: animeMetadata?.createdBy,
-          // Sezon bilgileri syncedAnime'den
-          seasons: syncedAnime?.seasons || [],
-          totalSeasons: syncedAnime?.totalSeasons || 0,
-          totalEpisodes: syncedAnime?.totalEpisodes || 0
-        }
+        setAnime(foundAnime)
         
-        setAnime(combinedAnime)
-        
-        // Sezonları ayarla
-        if (combinedAnime.seasons && combinedAnime.seasons.length > 0) {
-          setSeasons(combinedAnime.seasons)
+        // Sezonları ayarla (yeni format: seasons array)
+        if (foundAnime.seasons && foundAnime.seasons.length > 0) {
+          setSeasons(foundAnime.seasons)
           // İlk sezonu seç ve bölümlerini yükle
-          loadSeasonEpisodes(combinedAnime.seasons[0])
+          loadSeasonEpisodes(foundAnime, foundAnime.seasons[0])
+        } else {
+          // Eski format için backward compatibility
+          if (foundAnime.b2Folder || foundAnime.collectionId) {
+            const legacySeason = {
+              seasonNumber: 1,
+              b2Folder: foundAnime.b2Folder,
+              collectionId: foundAnime.collectionId,
+              totalEpisodes: foundAnime.totalEpisodes || 0
+            }
+            setSeasons([legacySeason])
+            loadSeasonEpisodes(foundAnime, legacySeason)
+          }
         }
       }
     } catch (err) {
@@ -89,19 +73,39 @@ function AnimeDetail() {
     }
   }
 
-  const loadSeasonEpisodes = async (season) => {
+  const loadSeasonEpisodes = async (animeData, season) => {
     setLoadingEpisodes(true)
     setSelectedSeason(season)
     
     try {
-      const videosResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
-      const videosData = await videosResponse.json()
-      
-      if (videosData.success) {
-        setEpisodes(videosData.videos)
+      // B2'den bölümleri çek
+      if (season.b2Folder) {
+        const slug = animeData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        const response = await fetch(`${API_BASE_URL}/b2/anime/${slug}/season/${season.seasonNumber}`)
+        const data = await response.json()
+        
+        if (data.success && data.episodes) {
+          // playlist.m3u8 kullan (master.m3u8 yerine)
+          const episodesWithPlaylist = data.episodes.map(ep => ({
+            ...ep,
+            url: ep.url.replace('master.m3u8', 'playlist.m3u8')
+          }))
+          setEpisodes(episodesWithPlaylist)
+        } else {
+          setEpisodes([])
+        }
+      } else if (season.collectionId) {
+        // Eski Bunny format için backward compatibility
+        const videosResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
+        const videosData = await videosResponse.json()
+        
+        if (videosData.success) {
+          setEpisodes(videosData.videos)
+        }
       }
     } catch (err) {
       console.error('Error loading episodes:', err)
+      setEpisodes([])
     } finally {
       setLoadingEpisodes(false)
     }
@@ -262,16 +266,16 @@ function AnimeDetail() {
                 <div className="flex flex-wrap gap-2">
                   {seasons.map((season) => (
                     <button
-                      key={season.season}
-                      onClick={() => loadSeasonEpisodes(season)}
+                      key={season.seasonNumber}
+                      onClick={() => loadSeasonEpisodes(anime, season)}
                       disabled={loadingEpisodes}
                       className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        selectedSeason?.season === season.season
+                        selectedSeason?.seasonNumber === season.seasonNumber
                           ? 'bg-primary text-background-dark'
                           : 'bg-white/10 text-white hover:bg-white/20'
                       } disabled:opacity-50`}
                     >
-                      Sezon {season.season} ({season.episodeCount} bölüm)
+                      Sezon {season.seasonNumber} ({season.totalEpisodes || 0} bölüm)
                     </button>
                   ))}
                 </div>
@@ -288,17 +292,17 @@ function AnimeDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(showAllEpisodes ? episodes : episodes.slice(0, 12)).map((episode, index) => (
                   <motion.div
-                    key={episode.guid}
+                    key={episode.episode || index}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => {
                       // Anime slug oluştur
                       const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-                      // Episode number'ı bul (index + 1)
-                      const epNumber = index + 1
+                      // Episode number
+                      const epNumber = episode.episode || (index + 1)
                       // Sezon numarası
-                      const season = selectedSeason?.season || 1
+                      const season = selectedSeason?.seasonNumber || 1
                       navigate(`/watch/${slug}/${season}/${epNumber}`)
                     }}
                     className="bg-black/30 border border-white/10 rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer group"
@@ -327,11 +331,11 @@ function AnimeDetail() {
 
                     {/* Episode Info */}
                     <h3 className="text-white font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      {episode.title}
+                      Bölüm {episode.episode || (index + 1)}
                     </h3>
                     
                     <div className="flex items-center text-sm text-white/60">
-                      <span>⏱️ {Math.floor(episode.length / 60)} dakika</span>
+                      <span>📺 Sezon {selectedSeason?.seasonNumber || 1}</span>
                     </div>
                   </motion.div>
                   ))}

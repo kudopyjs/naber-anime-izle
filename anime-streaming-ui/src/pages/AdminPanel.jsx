@@ -379,7 +379,7 @@ function AdminPanel() {
                             <div className="flex-1">
                               <h4 className="text-white font-semibold text-lg line-clamp-1">{anime.name}</h4>
                               <p className="text-white/60 text-sm">
-                                📁 {collection ? `${collection.videoCount} bölüm` : 'Collection bulunamadı'}
+                                📁 {anime.totalEpisodes ? `${anime.totalEpisodes} bölüm` : 'Bölüm bilgisi yok'}
                               </p>
                             </div>
                           </div>
