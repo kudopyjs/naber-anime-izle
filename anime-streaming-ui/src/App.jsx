@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Watch from './pages/Watch'
 import WatchB2 from './pages/WatchB2'
+import WatchB2New from './pages/WatchB2New'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import UploadVideoNew from './pages/UploadVideoNew'
@@ -25,7 +26,7 @@ function App() {
               path="/watch/:animeSlug/:seasonNumber/:episodeNumber" 
               element={
                 <ProtectedRoute>
-                  <Watch />
+                  <WatchB2New />
                 </ProtectedRoute>
               } 
             />

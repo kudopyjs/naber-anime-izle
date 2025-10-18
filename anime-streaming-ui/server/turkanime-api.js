@@ -821,4 +821,93 @@ app.listen(PORT, () => {
   console.log(`  POST /api/list/create`);
   console.log(`  POST /api/list/:listId/add-anime`);
   console.log(`  DELETE /api/list/:listId/remove-anime/:slug`);
+  console.log(`  GET  /api/b2/folders`);
+  console.log(`  GET  /api/b2/anime/:animeSlug/season/:seasonNumber`);
+});
+
+/**
+ * GET /api/b2/folders
+ * B2'deki anime klasörlerini listele
+ */
+app.get('/api/b2/folders', async (req, res) => {
+  try {
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+    
+    // B2 CLI ile klasörleri listele
+    const { stdout } = await execPromise('b2 ls kudopy');
+    
+    // Klasörleri parse et
+    const folders = stdout
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const parts = line.trim().split(/\s+/);
+        return parts[parts.length - 1]; // Son kısım klasör adı
+      })
+      .filter(name => name && !name.includes('.'));
+    
+    res.json({ success: true, folders });
+  } catch (error) {
+    console.error('B2 folders error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/b2/anime/:animeSlug/season/:seasonNumber
+ * B2'den belirli bir anime sezonunun bölümlerini getir
+ */
+app.get('/api/b2/anime/:animeSlug/season/:seasonNumber', async (req, res) => {
+  try {
+    const { animeSlug, seasonNumber } = req.params;
+    
+    // Anime adını slug'dan oluştur
+    const animeName = animeSlug
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+    
+    // B2'de klasör yapısı: "Anime Name Season X/Episode Y/"
+    const seasonFolder = `${animeName} Season ${seasonNumber}`;
+    
+    // B2 CLI ile bölümleri listele
+    const { stdout } = await execPromise(`b2 ls kudopy "${seasonFolder}/"`);
+    
+    // Bölümleri parse et
+    const episodes = [];
+    const lines = stdout.split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      const folderName = parts[parts.length - 1];
+      
+      if (folderName && folderName.startsWith('Episode ')) {
+        const episodeNum = parseInt(folderName.replace('Episode ', '').replace('/', ''));
+        episodes.push({
+          number: episodeNum,
+          title: `Episode ${episodeNum}`,
+          path: `${seasonFolder}/Episode ${episodeNum}`,
+        });
+      }
+    }
+    
+    // Episode numarasına göre sırala
+    episodes.sort((a, b) => a.number - b.number);
+    
+    res.json({
+      success: true,
+      anime: { name: animeName, slug: animeSlug },
+      season: parseInt(seasonNumber),
+      episodes,
+    });
+  } catch (error) {
+    console.error('B2 anime season error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
