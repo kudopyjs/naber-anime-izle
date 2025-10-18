@@ -1,0 +1,243 @@
+/* Modern Anime Video Player Theme */
+
+.video-player-wrapper {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: #000;
+}
+
+/* Custom Video.js Theme */
+.vjs-theme-anime {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Big Play Button - Modern & Glowing */
+.vjs-theme-anime .vjs-big-play-button {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 3px solid #FFD700;
+  background: rgba(255, 215, 0, 0.15);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.vjs-theme-anime .vjs-big-play-button:hover {
+  background: rgba(255, 215, 0, 0.3);
+  border-color: #FFF;
+  transform: translate(-50%, -50%) scale(1.1);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+}
+
+.vjs-theme-anime .vjs-big-play-button .vjs-icon-placeholder:before {
+  font-size: 40px;
+  line-height: 74px;
+  color: #FFD700;
+}
+
+/* Control Bar - Always Visible & Modern */
+.vjs-theme-anime .vjs-control-bar {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.7), transparent);
+  height: 60px;
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: opacity 0.3s ease;
+}
+
+.vjs-theme-anime.vjs-user-inactive .vjs-control-bar {
+  opacity: 0;
+}
+
+.vjs-theme-anime:hover .vjs-control-bar,
+.vjs-theme-anime.vjs-paused .vjs-control-bar {
+  opacity: 1;
+}
+
+/* Progress Bar - Golden Theme */
+.vjs-theme-anime .vjs-progress-control {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 8px;
+}
+
+.vjs-theme-anime .vjs-progress-holder {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.vjs-theme-anime .vjs-play-progress {
+  background: linear-gradient(90deg, #FFD700, #FFA500);
+  border-radius: 4px;
+}
+
+.vjs-theme-anime .vjs-play-progress:before {
+  display: none;
+}
+
+.vjs-theme-anime .vjs-load-progress {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+/* Hover effect on progress bar */
+.vjs-theme-anime .vjs-progress-control:hover .vjs-progress-holder {
+  height: 10px;
+  font-size: 1.2em;
+}
+
+/* Buttons - Modern & Clean */
+.vjs-theme-anime .vjs-control {
+  color: #FFF;
+  transition: all 0.2s ease;
+}
+
+.vjs-theme-anime .vjs-control:hover {
+  color: #FFD700;
+  transform: scale(1.1);
+}
+
+.vjs-theme-anime .vjs-play-control,
+.vjs-theme-anime .vjs-fullscreen-control {
+  font-size: 1.8em;
+}
+
+/* Volume Panel */
+.vjs-theme-anime .vjs-volume-panel {
+  transition: all 0.3s ease;
+}
+
+.vjs-theme-anime .vjs-volume-panel:hover .vjs-volume-control {
+  opacity: 1;
+  width: 80px;
+}
+
+.vjs-theme-anime .vjs-volume-bar {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.vjs-theme-anime .vjs-volume-level {
+  background: linear-gradient(90deg, #FFD700, #FFA500);
+  border-radius: 4px;
+}
+
+/* Time Display */
+.vjs-theme-anime .vjs-time-control {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 60px;
+  padding: 0 10px;
+  color: #FFF;
+}
+
+.vjs-theme-anime .vjs-current-time,
+.vjs-theme-anime .vjs-duration {
+  display: block;
+}
+
+.vjs-theme-anime .vjs-time-divider {
+  padding: 0 5px;
+  line-height: 60px;
+}
+
+/* Playback Rate Menu */
+.vjs-theme-anime .vjs-playback-rate .vjs-playback-rate-value {
+  font-size: 14px;
+  line-height: 60px;
+  padding: 0 10px;
+}
+
+.vjs-theme-anime .vjs-menu {
+  background: rgba(20, 20, 30, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.vjs-theme-anime .vjs-menu-item {
+  padding: 10px 20px;
+  font-size: 14px;
+  color: #FFF;
+  transition: all 0.2s ease;
+}
+
+.vjs-theme-anime .vjs-menu-item:hover,
+.vjs-theme-anime .vjs-menu-item.vjs-selected {
+  background: rgba(255, 215, 0, 0.2);
+  color: #FFD700;
+}
+
+/* Loading Spinner */
+.vjs-theme-anime .vjs-loading-spinner {
+  border-color: rgba(255, 215, 0, 0.3);
+  border-top-color: #FFD700;
+}
+
+/* Error Display */
+.vjs-theme-anime .vjs-error-display {
+  background: rgba(20, 20, 30, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+.vjs-theme-anime .vjs-error-display .vjs-modal-dialog-content {
+  color: #FFD700;
+  font-size: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .vjs-theme-anime .vjs-big-play-button {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .vjs-theme-anime .vjs-big-play-button .vjs-icon-placeholder:before {
+    font-size: 30px;
+    line-height: 54px;
+  }
+  
+  .vjs-theme-anime .vjs-control-bar {
+    height: 50px;
+  }
+  
+  .vjs-theme-anime .vjs-time-control {
+    font-size: 12px;
+    line-height: 50px;
+  }
+  
+  .vjs-theme-anime .vjs-remaining-time {
+    display: none;
+  }
+}
+
+/* Fullscreen Mode */
+.vjs-theme-anime.vjs-fullscreen {
+  background: #000;
+}
+
+.vjs-theme-anime.vjs-fullscreen .vjs-control-bar {
+  height: 70px;
+}
+
+/* Smooth Transitions */
+.vjs-theme-anime * {
+  transition: all 0.2s ease;
+}
+
+/* Hide default Video.js watermark */
+.vjs-theme-anime .vjs-text-track-display {
+  pointer-events: none;
+}

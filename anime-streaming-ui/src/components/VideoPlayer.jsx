@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
+import './VideoPlayer.css';
 
 export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
   const videoRef = useRef(null);
@@ -15,9 +16,25 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
         preload: 'auto',
         fluid: true,
         responsive: true,
+        playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
+        controlBar: {
+          children: [
+            'playToggle',
+            'volumePanel',
+            'currentTimeDisplay',
+            'timeDivider',
+            'durationDisplay',
+            'progressControl',
+            'remainingTimeDisplay',
+            'playbackRateMenuButton',
+            'qualitySelector',
+            'fullscreenToggle',
+          ],
+        },
         html5: {
           vhs: {
             overrideNative: true,
+            enableLowInitialPlaylist: true,
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -72,11 +89,13 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
   }, []);
 
   return (
-    <div data-vjs-player>
-      <video
-        ref={videoRef}
-        className="video-js vjs-big-play-centered"
-      />
+    <div className="video-player-wrapper">
+      <div data-vjs-player>
+        <video
+          ref={videoRef}
+          className="video-js vjs-theme-anime vjs-big-play-centered"
+        />
+      </div>
     </div>
   );
 }
