@@ -1151,6 +1151,70 @@ app.get('/api/r2/anime/:slug/season/:num', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/turkanime/sync-to-bunny
+ * Anime'nin tüm bölümlerini Bunny Stream'e senkronize et
+ */
+app.post('/api/turkanime/sync-to-bunny', async (req, res) => {
+  try {
+    const { animeSlug, startEpisode = 1, endEpisode, collectionName } = req.body;
+    
+    if (!animeSlug) {
+      return res.status(400).json({
+        success: false,
+        error: 'animeSlug parametresi gerekli'
+      });
+    }
+    
+    console.log('🐰 Bunny Sync başlatılıyor...');
+    console.log('  Anime:', animeSlug);
+    console.log('  Bölümler:', `${startEpisode}-${endEpisode || 'son'}`);
+    console.log('  Collection:', collectionName || 'Varsayılan');
+    
+    // Hemen yanıt ver (async olarak çalışacak)
+    res.json({
+      success: true,
+      message: 'Bunny Sync başlatıldı, arka planda devam ediyor...',
+      status: 'processing'
+    });
+    
+    // Python script'ini arka planda çalıştır
+    const scriptPath = path.join(__dirname, '..', '..', 'bunny_scripts', 'turkanime_to_bunny.py');
+    
+    const scriptArgs = [
+      '--anime', animeSlug,
+      '--start', startEpisode.toString()
+    ];
+    
+    if (endEpisode) {
+      scriptArgs.push('--end', endEpisode.toString());
+    } else {
+      scriptArgs.push('--all');
+    }
+    
+    runPythonScript(scriptPath, scriptArgs)
+      .then(result => {
+        console.log('✅ Bunny Sync completed:', result.success ? 'SUCCESS' : 'FAILED');
+        if (result.video_id) {
+          console.log('  Video ID:', result.video_id);
+        }
+        if (!result.success && result.error) {
+          console.log('  ❌ Error:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ Bunny Sync failed:', error.message);
+      });
+    
+  } catch (error) {
+    console.error('Bunny sync error:', error);
+    res.status(500).json({ 
+      error: error.message, 
+      success: false 
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 TürkAnime API running on http://localhost:${PORT}`);
   console.log(`📁 Python scripts directory: ${PYTHON_SCRIPTS_DIR}`);
@@ -1159,6 +1223,7 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/turkanime/search?q=<query>`);
   console.log(`  GET  /api/turkanime/anime/:slug`);
   console.log(`  POST /api/turkanime/import-episode`);
+  console.log(`  POST /api/turkanime/sync-to-bunny`);
   console.log(`  GET  /api/turkanime/list-all`);
   console.log(`  GET  /api/bunny/collections`);
   console.log(`  POST /api/anime/create`);

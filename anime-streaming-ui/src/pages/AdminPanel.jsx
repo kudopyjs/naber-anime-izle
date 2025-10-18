@@ -101,6 +101,39 @@ function AdminPanel() {
     // bu yüzden localStorage'daki kullanıcıları kullanıyoruz
   }
 
+  const handleBunnySync = async (anime) => {
+    const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    
+    if (!confirm(`"${anime.name}" için Bunny Stream'e senkronizasyon başlatılsın mı?\n\nBu işlem tüm bölümleri TurkAnime'den Bunny Stream'e yükleyecektir.`)) {
+      return
+    }
+
+    try {
+      // Anime slug'ını kullanarak Python script'ini çalıştır
+      const response = await fetch(`${API_BASE_URL}/turkanime/sync-to-bunny`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          animeSlug: slug,
+          startEpisode: 1,
+          endEpisode: anime.totalEpisodes || 999,
+          collectionName: anime.name
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`✅ Bunny Sync başlatıldı!\n\n"${anime.name}" için ${anime.totalEpisodes || 'tüm'} bölüm Bunny Stream'e yüklenecek.\n\nİşlem arka planda devam ediyor, terminal loglarını kontrol edebilirsiniz.`)
+      } else {
+        alert(`❌ Hata: ${data.error || 'Bilinmeyen hata'}`)
+      }
+    } catch (error) {
+      console.error('Bunny sync error:', error)
+      alert('❌ Bunny Sync başlatılamadı!')
+    }
+  }
+
   const handleCreateUserInBackend = async (userId) => {
     const localUsers = JSON.parse(localStorage.getItem('users') || '[]')
     const user = localUsers.find(u => u.id === userId)
@@ -384,7 +417,7 @@ function AdminPanel() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center justify-between mt-3">
+                          <div className="flex flex-col gap-2 mt-3">
                             <div className="flex items-center gap-2 text-xs text-white/40">
                               {anime.genres && anime.genres.length > 0 && (
                                 <span className="px-2 py-1 bg-white/10 rounded">{anime.genres[0]}</span>
@@ -393,22 +426,28 @@ function AdminPanel() {
                             </div>
                             <div className="flex gap-2">
                               <button
+                                onClick={() => handleBunnySync(anime)}
+                                className="flex-1 px-3 py-1.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-sm font-semibold rounded transition-colors"
+                              >
+                                🐰 Bunny Sync
+                              </button>
+                              <button
                                 onClick={() => {
                                   const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
                                   navigate(`/edit-anime/${slug}`)
                                 }}
-                                className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm font-semibold rounded transition-colors"
+                                className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm font-semibold rounded transition-colors"
                               >
-                                ✏️ Düzenle
+                                ✏️
                               </button>
                               <button
                                 onClick={() => {
                                   const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
                                   navigate(`/anime/${slug}`)
                                 }}
-                                className="px-3 py-1 bg-primary/20 hover:bg-primary/30 text-primary text-sm font-semibold rounded transition-colors"
+                                className="px-3 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary text-sm font-semibold rounded transition-colors"
                               >
-                                👁️ Görüntüle
+                                👁️
                               </button>
                             </div>
                           </div>
