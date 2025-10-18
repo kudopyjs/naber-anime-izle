@@ -318,6 +318,12 @@ class BunnyUploader:
             print(f"  ℹ️ Collection taşıma işlemi tüm videolar yüklendikten sonra yapılacak")
             
             # 2. Dosyayı yükle
+            file_size = os.path.getsize(file_path)
+            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
+            print(f"  ⬆️ Yükleme başlıyor...", flush=True)
+            
+            start_time = time.time()
+            
             with open(file_path, 'rb') as f:
                 upload_response = requests.put(
                     f"{self.base_url}/videos/{video_id}",
@@ -325,8 +331,13 @@ class BunnyUploader:
                         "AccessKey": self.api_key,
                         "Content-Type": "application/octet-stream"
                     },
-                    data=f
+                    data=f,
+                    timeout=600  # 10 dakika timeout
                 )
+            
+            elapsed_time = time.time() - start_time
+            speed_mbps = (file_size / (1024*1024)) / elapsed_time if elapsed_time > 0 else 0
+            print(f"  ✅ Yükleme tamamlandı! ({elapsed_time:.1f}s, {speed_mbps:.2f} MB/s)", flush=True)
             
             if upload_response.status_code == 200:
                 return {
