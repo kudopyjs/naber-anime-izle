@@ -584,26 +584,40 @@ app.post('/api/anime/create', async (req, res) => {
       });
     }
     
-    // Her sezon için B2'den bölüm sayısını otomatik çek
-    const bucketId = process.env.VITE_B2_BUCKET_ID;
-    if (bucketId) {
-      try {
-        await authorizeB2();
-        
-        for (let season of seasonsData) {
-          if (season.b2Folder) {
-            // B2'den bu klasördeki Episode-X klasörlerini say
+    // Her sezon için bölüm sayısını otomatik çek
+    for (let season of seasonsData) {
+      if (season.collectionId) {
+        // Bunny Collection'dan video sayısını çek
+        try {
+          const scriptPath = path.join(__dirname, 'turkanime-helpers', 'get_collection_videos.py');
+          const result = await runPythonScript(scriptPath, [season.collectionId]);
+          
+          if (result.success && result.videos) {
+            season.totalEpisodes = result.videos.length;
+            console.log(`📊 Sezon ${season.seasonNumber} (Collection: ${season.collectionId}): ${season.totalEpisodes} bölüm bulundu`);
+          } else {
+            season.totalEpisodes = 0;
+          }
+        } catch (error) {
+          console.error('Bunny collection episode count error:', error);
+          season.totalEpisodes = 0;
+        }
+      } else if (season.b2Folder) {
+        // B2'den bölüm sayısını çek (backward compatibility)
+        const bucketId = process.env.VITE_B2_BUCKET_ID;
+        if (bucketId) {
+          try {
+            await authorizeB2();
+            
             const response = await b2.listFileNames({
               bucketId: bucketId,
               maxFileCount: 10000,
               prefix: `${season.b2Folder}/`
             });
             
-            // Episode-X klasörlerini say
             const episodeFolders = new Set();
             if (response.data.files) {
               response.data.files.forEach(file => {
-                // Episode X veya Episode-X formatını yakala (boşluk veya tire ile)
                 const match = file.fileName.match(/Episode[\s\-](\d+)/i);
                 if (match) {
                   episodeFolders.add(parseInt(match[1]));
@@ -613,12 +627,15 @@ app.post('/api/anime/create', async (req, res) => {
             
             season.totalEpisodes = episodeFolders.size;
             console.log(`📊 Sezon ${season.seasonNumber} (${season.b2Folder}): ${season.totalEpisodes} bölüm bulundu`);
+          } catch (error) {
+            console.error('B2 episode count error:', error);
+            season.totalEpisodes = 0;
           }
+        } else {
+          season.totalEpisodes = 0;
         }
-      } catch (error) {
-        console.error('B2 episode count error:', error);
-        // Hata olursa 0 olarak devam et
-        seasonsData.forEach(s => s.totalEpisodes = s.totalEpisodes || 0);
+      } else {
+        season.totalEpisodes = 0;
       }
     }
     

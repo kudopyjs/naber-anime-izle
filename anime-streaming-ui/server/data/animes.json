@@ -53,7 +53,8 @@
     "seasons": [
       {
         "seasonNumber": 1,
-        "collectionId": "🐰 Naruto Season 1 (7 video)"
+        "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+        "totalEpisodes": 7
       }
     ],
     "description": "Naruto işte kötü anime izleme",
@@ -64,7 +65,7 @@
     "createdBy": "kudo",
     "createdAt": "2025-10-18T18:38:43.655Z",
     "b2Folder": null,
-    "collectionId": "🐰 Naruto Season 1 (7 video)",
-    "totalEpisodes": 0
+    "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+    "totalEpisodes": 7
   }
 ]
