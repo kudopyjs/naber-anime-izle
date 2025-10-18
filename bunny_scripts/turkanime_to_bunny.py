@@ -317,51 +317,46 @@ class BunnyUploader:
             print(f"  ✅ Video oluşturuldu: {video_id}")
             print(f"  ℹ️ Collection taşıma işlemi tüm videolar yüklendikten sonra yapılacak")
             
-            # 2. Dosyayı yükle
+            # 2. Dosyayı yükle (chunk-based streaming)
             file_size = os.path.getsize(file_path)
             print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
-            print(f"  ⬆️ Yükleme başlıyor...", flush=True)
+            print(f"  ⬆️ Yükleme başlıyor (chunk-based streaming)...", flush=True)
             
             start_time = time.time()
+            chunk_size = 16 * 1024 * 1024  # 16MB chunks (optimize for high-speed connections)
             
-            # Progress bar için wrapper
-            class ProgressFileReader:
-                def __init__(self, file_path, file_size):
-                    self.file = open(file_path, 'rb')
-                    self.file_size = file_size
-                    self.uploaded = 0
-                    self.last_print = 0
+            # Generator ile chunk-based upload
+            def file_chunks_with_progress():
+                uploaded = 0
+                last_print = 0
                 
-                def read(self, size=-1):
-                    chunk = self.file.read(size)
-                    self.uploaded += len(chunk)
-                    
-                    # Her %5'te bir progress göster
-                    progress = (self.uploaded / self.file_size) * 100
-                    if progress - self.last_print >= 5 or self.uploaded == self.file_size:
-                        elapsed = time.time() - start_time
-                        speed = (self.uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
-                        print(f"    [{progress:.0f}%] {self.uploaded / (1024*1024):.1f}/{self.file_size / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
-                        self.last_print = progress
-                    
-                    return chunk
-                
-                def __enter__(self):
-                    return self
-                
-                def __exit__(self, *args):
-                    self.file.close()
+                with open(file_path, 'rb') as f:
+                    while True:
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        
+                        uploaded += len(chunk)
+                        progress = (uploaded / file_size) * 100
+                        
+                        # Her %5'te bir progress göster
+                        if progress - last_print >= 5 or uploaded == file_size:
+                            elapsed = time.time() - start_time
+                            speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
+                            print(f"    [{progress:.0f}%] {uploaded / (1024*1024):.1f}/{file_size / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
+                            last_print = progress
+                        
+                        yield chunk
             
-            with ProgressFileReader(file_path, file_size) as f:
-                upload_response = requests.put(
-                    f"{self.base_url}/videos/{video_id}",
-                    headers={
-                        "AccessKey": self.api_key,
-                        "Content-Type": "application/octet-stream"
-                    },
-                    data=f,
-                    timeout=600  # 10 dakika timeout
-                )
+            upload_response = requests.put(
+                f"{self.base_url}/videos/{video_id}",
+                headers={
+                    "AccessKey": self.api_key,
+                    "Content-Type": "application/octet-stream"
+                },
+                data=file_chunks_with_progress(),
+                timeout=600  # 10 dakika timeout
+            )
             
             elapsed_time = time.time() - start_time
             speed_mbps = (file_size / (1024*1024)) / elapsed_time if elapsed_time > 0 else 0
