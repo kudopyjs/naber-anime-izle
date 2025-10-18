@@ -674,6 +674,79 @@ class TurkAnimeToBunny:
             print(f"\n✅ Başarılı transferler: bunny_transfer_success.log")
         if self.stats["failed"] > 0:
             print(f"❌ Hatalar: bunny_transfer_errors.log")
+    
+    def transfer_single_episode(self, anime_slug: str, episode_num: int, 
+                               collection_id: str = None, fansub: str = None, 
+                               quality_priority: bool = True) -> Dict:
+        """Tek bir bölümü Bunny.net'e aktar (API için)"""
+        try:
+            # Anime objesini oluştur
+            anime = ta.Anime(anime_slug, parse_fansubs=True)
+            
+            if episode_num < 1 or episode_num > len(anime.bolumler):
+                return {
+                    "success": False,
+                    "error": f"Geçersiz bölüm numarası: {episode_num}"
+                }
+            
+            bolum = anime.bolumler[episode_num - 1]
+            
+            # En iyi videoyu bul
+            best_video = bolum.best_video(
+                by_res=quality_priority,
+                by_fansub=fansub
+            )
+            
+            if not best_video:
+                return {
+                    "success": False,
+                    "error": "Çalışan video bulunamadı"
+                }
+            
+            video_url = best_video.url
+            if not video_url:
+                return {
+                    "success": False,
+                    "error": "Video URL'si alınamadı"
+                }
+            
+            # Bunny.net'e aktar
+            title = f"{anime.title} - {bolum.title}"
+            result = self.bunny.upload_from_url(
+                video_url=video_url,
+                title=title,
+                collection_id=collection_id
+            )
+            
+            # Fallback: URL fetch başarısız olursa indir ve yükle
+            if not result["success"] and "Invalid file" in result.get("error", ""):
+                result = self._download_and_upload(
+                    video_url=video_url,
+                    title=title,
+                    collection_id=collection_id
+                )
+            
+            if result["success"]:
+                video_id = result.get("video_id")
+                self._log_success(anime_slug, episode_num, bolum.title, video_id)
+                return {
+                    "success": True,
+                    "video_id": video_id,
+                    "title": title,
+                    "episode": episode_num
+                }
+            else:
+                self._log_error(anime_slug, episode_num, bolum.title, result["error"])
+                return {
+                    "success": False,
+                    "error": result["error"]
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 def main():
@@ -698,10 +771,12 @@ def main():
     
     parser.add_argument("--list", action="store_true", help="Tüm animeleri listele")
     parser.add_argument("--anime", type=str, help="Anime slug (örn: naruto)")
+    parser.add_argument("--episode", type=str, help="Tek bölüm slug (örn: naruto-1-bolum)")
     parser.add_argument("--start", type=int, default=1, help="Başlangıç bölümü (varsayılan: 1)")
     parser.add_argument("--end", type=int, help="Bitiş bölümü (varsayılan: son bölüm)")
     parser.add_argument("--all", action="store_true", help="Tüm bölümleri aktar")
     parser.add_argument("--season", type=int, default=1, help="Sezon numarası (varsayılan: 1)")
+    parser.add_argument("--collection", type=str, help="Bunny collection ID")
     parser.add_argument("--fansub", type=str, help="Tercih edilen fansub")
     parser.add_argument("--no-quality", action="store_true", help="Kalite önceliğini kapat")
     
@@ -711,6 +786,26 @@ def main():
     
     if args.list:
         transfer.list_all_anime()
+    elif args.episode:
+        # Tek bölüm yükleme (API'den çağrılır)
+        # Episode slug'dan bölüm numarasını çıkar: naruto-1-bolum -> 1
+        parts = args.episode.rsplit('-', 2)
+        if len(parts) >= 2 and parts[-1] == 'bolum':
+            episode_num = int(parts[-2])
+            anime_slug = '-'.join(parts[:-2])
+            
+            result = transfer.transfer_single_episode(
+                anime_slug=anime_slug,
+                episode_num=episode_num,
+                collection_id=args.collection,
+                fansub=args.fansub,
+                quality_priority=not args.no_quality
+            )
+            
+            # JSON output (API için)
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            print(json.dumps({"success": False, "error": "Geçersiz episode slug"}))
     elif args.anime:
         transfer.transfer_anime(
             anime_slug=args.anime,

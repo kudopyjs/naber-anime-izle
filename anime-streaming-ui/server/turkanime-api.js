@@ -29,6 +29,10 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = 5002;
 
+// Bunny Stream Configuration
+const BUNNY_LIBRARY_ID = process.env.VITE_BUNNY_LIBRARY_ID || '515326';
+const BUNNY_API_KEY = process.env.VITE_BUNNY_STREAM_API_KEY;
+
 app.use(cors());
 app.use(express.json());
 
@@ -245,17 +249,21 @@ app.post('/api/turkanime/import-episode', async (req, res) => {
       status: 'processing'
     });
     
-    // Python script'ini arka planda çalıştır (Bunny Encode → R2 Storage)
-    const scriptPath = path.join(__dirname, '..', '..', 'bunny_scripts', 'turkanime_bunny_to_r2.py');
+    // Python script'ini arka planda çalıştır (Direkt Bunny Stream)
+    const scriptPath = path.join(__dirname, '..', '..', 'bunny_scripts', 'turkanime_to_bunny.py');
     
-    // R2 folder belirle
-    const targetR2Folder = b2Folder || `${animeSlug}-season-${seasonNumber || 1}`;
+    // Collection ID belirle (opsiyonel)
+    const collectionId = b2Folder || null;
     
     const scriptArgs = [
       '--anime', animeSlug,
-      '--episode', episodeSlug,
-      '--r2-folder', targetR2Folder
+      '--episode', episodeSlug
     ];
+    
+    // Collection ID varsa ekle
+    if (collectionId) {
+      scriptArgs.push('--collection', collectionId);
+    }
     
     // Fansub parametresi varsa ekle
     if (fansub) {
@@ -264,9 +272,10 @@ app.post('/api/turkanime/import-episode', async (req, res) => {
     
     runPythonScript(scriptPath, scriptArgs)
       .then(result => {
-        console.log('✅ R2 Import completed:', result.success ? 'SUCCESS' : 'FAILED');
-        if (result.r2_url) {
-          console.log('  R2 URL:', result.r2_url);
+        console.log('✅ Bunny Import completed:', result.success ? 'SUCCESS' : 'FAILED');
+        if (result.video_id) {
+          console.log('  Video ID:', result.video_id);
+          console.log('  Bunny URL:', `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${result.video_id}`);
         }
         if (!result.success && result.error) {
           console.log('  ❌ Error:', result.error);
@@ -276,7 +285,7 @@ app.post('/api/turkanime/import-episode', async (req, res) => {
         }
       })
       .catch(error => {
-        console.error('❌ R2 Import failed:', error.message);
+        console.error('❌ Bunny Import failed:', error.message);
       });
     
   } catch (error) {
