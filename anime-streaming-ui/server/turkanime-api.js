@@ -685,6 +685,56 @@ app.get('/api/anime/list', async (req, res) => {
  */
 
 /**
+ * DELETE /api/anime/:id
+ * Anime'yi sil
+ */
+app.delete('/api/anime/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const animesPath = path.join(__dirname, 'data', 'animes.json');
+    
+    if (!fs.existsSync(animesPath)) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Anime bulunamadı' 
+      });
+    }
+    
+    // Mevcut animeleri oku
+    const data = fs.readFileSync(animesPath, 'utf8');
+    let animes = JSON.parse(data);
+    
+    // Anime'yi bul
+    const animeIndex = animes.findIndex(a => a.id === id);
+    if (animeIndex === -1) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Anime bulunamadı' 
+      });
+    }
+    
+    const deletedAnime = animes[animeIndex];
+    
+    // Anime'yi sil
+    animes.splice(animeIndex, 1);
+    
+    // Dosyaya kaydet
+    fs.writeFileSync(animesPath, JSON.stringify(animes, null, 2));
+    
+    console.log(`🗑️ Anime silindi: ${deletedAnime.name} (ID: ${id})`);
+    
+    res.json({ 
+      success: true, 
+      message: `"${deletedAnime.name}" başarıyla silindi`,
+      deletedAnime 
+    });
+  } catch (error) {
+    console.error('Delete anime error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/user/create
  * Yeni kullanıcı oluştur (signup sırasında otomatik)
  */
@@ -1228,6 +1278,7 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/bunny/collections`);
   console.log(`  POST /api/anime/create`);
   console.log(`  GET  /api/anime/list`);
+  console.log(`  DELETE /api/anime/:id`);
   console.log(`  POST /api/user/create`);
   console.log(`  GET  /api/user/:userId`);
   console.log(`  GET  /api/user/:userId/lists`);

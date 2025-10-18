@@ -134,6 +134,31 @@ function AdminPanel() {
     }
   }
 
+  const handleDeleteAnime = async (anime) => {
+    if (!confirm(`"${anime.name}" anime'sini silmek istediğinize emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/anime/${anime.id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        alert(`✅ "${anime.name}" başarıyla silindi!`)
+        // Listeyi yenile
+        loadAnimes()
+      } else {
+        alert(`❌ Hata: ${data.error || 'Bilinmeyen hata'}`)
+      }
+    } catch (error) {
+      console.error('Delete anime error:', error)
+      alert('❌ Anime silinemedi!')
+    }
+  }
+
   const handleCreateUserInBackend = async (userId) => {
     const localUsers = JSON.parse(localStorage.getItem('users') || '[]')
     const user = localUsers.find(u => u.id === userId)
@@ -186,20 +211,6 @@ function AdminPanel() {
       const updated = categories.filter(c => c.id !== id)
       setCategories(updated)
       localStorage.setItem('categories', JSON.stringify(updated))
-    }
-  }
-
-  // Anime Management
-  const handleDeleteAnime = async (id) => {
-    if (confirm('Bu anime\'yi silmek istediğinizden emin misiniz?')) {
-      try {
-        // TODO: Backend'e delete isteği gönder
-        console.log('Anime silme işlemi:', id)
-        // Silme işleminden sonra listeyi yenile
-        loadAnimes()
-      } catch (error) {
-        console.error('Anime silme hatası:', error)
-      }
     }
   }
 
@@ -415,6 +426,13 @@ function AdminPanel() {
                                 📁 {anime.totalEpisodes ? `${anime.totalEpisodes} bölüm` : 'Bölüm bilgisi yok'}
                               </p>
                             </div>
+                            <button
+                              onClick={() => handleDeleteAnime(anime)}
+                              className="text-red-400 hover:text-red-300 transition-colors"
+                              title="Anime'yi Sil"
+                            >
+                              🗑️
+                            </button>
                           </div>
                           
                           <div className="flex flex-col gap-2 mt-3">
