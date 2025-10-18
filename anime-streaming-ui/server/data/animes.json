@@ -48,24 +48,24 @@
     "totalEpisodes": 0
   },
   {
-    "id": "1760813192522",
+    "id": "1760813355099",
     "name": "Naruto",
     "seasons": [
       {
         "seasonNumber": 1,
-        "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+        "collectionId": "01c251fb-7706-46b4-bdae-bed1daa72f88",
         "totalEpisodes": 7
       }
     ],
-    "description": "Kötü anime",
+    "description": "Kötü",
     "genres": [],
     "year": "2002",
     "status": "completed",
     "coverImage": "/uploads/covers/naruto/cover.jpg",
     "createdBy": "kudo",
-    "createdAt": "2025-10-18T18:46:32.522Z",
+    "createdAt": "2025-10-18T18:49:15.099Z",
     "b2Folder": null,
-    "collectionId": "5e740d9f-ff9d-4f37-af05-bdcc7d31acac",
+    "collectionId": "01c251fb-7706-46b4-bdae-bed1daa72f88",
     "totalEpisodes": 7
   }
 ]

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
@@ -16,6 +16,8 @@ function Watch() {
   const [allEpisodes, setAllEpisodes] = useState([])
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(-1)
   const [videoId, setVideoId] = useState(null)
+  const videoRef = useRef(null)
+  const hlsRef = useRef(null)
 
   useEffect(() => {
     loadVideoData()
@@ -61,16 +63,16 @@ function Watch() {
     try {
       console.log('🔍 Loading video:', { animeSlug, seasonNumber, episodeNumber })
       
-      // Bunny sync data'dan anime ve sezon bilgisini bul
-      const syncResponse = await fetch(`${API_BASE_URL}/bunny/sync-data`)
-      const syncData = await syncResponse.json()
+      // Anime listesinden anime bilgisini bul
+      const animesResponse = await fetch(`${API_BASE_URL}/anime/list`)
+      const animesData = await animesResponse.json()
       
-      if (!syncData.success) {
+      if (!animesData.success) {
         throw new Error('Anime verisi yüklenemedi')
       }
       
       // Anime slug'a göre anime bul
-      const foundAnime = syncData.animes.find(a => 
+      const foundAnime = animesData.animes.find(a => 
         a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === animeSlug.toLowerCase()
       )
       
@@ -81,13 +83,13 @@ function Watch() {
       console.log('✅ Found anime:', foundAnime.name)
       
       // Sezon bilgisini bul
-      const season = foundAnime.seasons.find(s => s.season === parseInt(seasonNumber))
+      const season = foundAnime.seasons?.find(s => s.seasonNumber === parseInt(seasonNumber))
       
       if (!season) {
         throw new Error(`Sezon ${seasonNumber} bulunamadı`)
       }
       
-      console.log('✅ Found season:', season.season, season.collectionName)
+      console.log('✅ Found season:', season.seasonNumber, season.collectionId)
       
       // Collection'daki tüm videoları çek
       const episodesResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
