@@ -315,18 +315,7 @@ class BunnyUploader:
             response_data = response.json()
             video_id = response_data.get("guid")
             print(f"  ✅ Video oluşturuldu: {video_id}")
-            
-            # Collection'a eklendiğini doğrula veya taşı
-            if collection_id:
-                video_collection = response_data.get("collectionId")
-                if video_collection == collection_id:
-                    print(f"  ✅ Video collection'a eklendi: {collection_id}")
-                else:
-                    print(f"  📦 Video collection'a taşınıyor...")
-                    if self.update_video(video_id=video_id, collection_id=collection_id):
-                        print(f"  ✅ Video başarıyla collection'a taşındı!")
-                    else:
-                        print(f"  ⚠️ Video collection'a taşınamadı")
+            print(f"  ℹ️ Collection taşıma işlemi tüm videolar yüklendikten sonra yapılacak")
             
             # 2. Dosyayı yükle
             with open(file_path, 'rb') as f:
@@ -521,6 +510,9 @@ class TurkAnimeToBunny:
         print(f"\n🔄 {start_ep}-{end_ep} arası {len(bolumler)} bölüm aktarılacak...")
         print(f"📋 Bölümler: {[b.title for b in bolumler[:3]]}{'...' if len(bolumler) > 3 else ''}\n")
         
+        # Başarılı video ID'lerini topla (collection'a taşımak için)
+        uploaded_video_ids = []
+        
         # Her bölümü işle
         for i, bolum in enumerate(bolumler, start=start_ep):
             print(f"\n[{i}/{end_ep}] {bolum.title}")
@@ -589,8 +581,9 @@ class TurkAnimeToBunny:
                     print(f"✅ Başarıyla aktarıldı! Video ID: {video_id}")
                     self.stats["success"] += 1
                     
-                    # Log dosyasına kaydet
+                    # Video ID'yi topla (collection'a taşımak için)
                     if video_id:
+                        uploaded_video_ids.append(video_id)
                         self._log_success(anime_slug, i, bolum.title, video_id)
                         print(f"📝 Log kaydedildi: {anime_slug}|{i}|{video_id}")
                     else:
@@ -615,6 +608,27 @@ class TurkAnimeToBunny:
                 self._log_error(anime_slug, i, bolum.title, str(e))
                 print(f"\n⏭️ Sonraki bölüme geçiliyor...\n")
                 continue
+        
+        # Tüm videolar yüklendi, şimdi collection'a toplu taşıma
+        if uploaded_video_ids and collection_id:
+            print(f"\n{'='*60}")
+            print(f"📦 COLLECTION'A TOPLU TAŞIMA")
+            print(f"{'='*60}")
+            print(f"  Toplam {len(uploaded_video_ids)} video collection'a taşınacak...")
+            print(f"  Collection ID: {collection_id}\n")
+            
+            moved_count = 0
+            for idx, video_id in enumerate(uploaded_video_ids, 1):
+                print(f"  [{idx}/{len(uploaded_video_ids)}] Video taşınıyor: {video_id}")
+                if self.bunny.update_video(video_id=video_id, collection_id=collection_id):
+                    moved_count += 1
+                    print(f"    ✅ Başarılı")
+                else:
+                    print(f"    ❌ Başarısız")
+                time.sleep(0.5)  # API rate limit
+            
+            print(f"\n  ✅ {moved_count}/{len(uploaded_video_ids)} video başarıyla collection'a taşındı!")
+            print(f"{'='*60}\n")
         
         # Özet
         self._print_summary()
