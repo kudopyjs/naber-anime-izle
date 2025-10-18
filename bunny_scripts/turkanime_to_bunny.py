@@ -324,7 +324,35 @@ class BunnyUploader:
             
             start_time = time.time()
             
-            with open(file_path, 'rb') as f:
+            # Progress bar için wrapper
+            class ProgressFileReader:
+                def __init__(self, file_path, file_size):
+                    self.file = open(file_path, 'rb')
+                    self.file_size = file_size
+                    self.uploaded = 0
+                    self.last_print = 0
+                
+                def read(self, size=-1):
+                    chunk = self.file.read(size)
+                    self.uploaded += len(chunk)
+                    
+                    # Her %5'te bir progress göster
+                    progress = (self.uploaded / self.file_size) * 100
+                    if progress - self.last_print >= 5 or self.uploaded == self.file_size:
+                        elapsed = time.time() - start_time
+                        speed = (self.uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
+                        print(f"    [{progress:.0f}%] {self.uploaded / (1024*1024):.1f}/{self.file_size / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
+                        self.last_print = progress
+                    
+                    return chunk
+                
+                def __enter__(self):
+                    return self
+                
+                def __exit__(self, *args):
+                    self.file.close()
+            
+            with ProgressFileReader(file_path, file_size) as f:
                 upload_response = requests.put(
                     f"{self.base_url}/videos/{video_id}",
                     headers={
