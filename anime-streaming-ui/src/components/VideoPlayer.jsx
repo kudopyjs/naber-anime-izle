@@ -129,7 +129,7 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
       <div data-vjs-player>
         <video
           ref={videoRef}
-          className="video-js vjs-theme-netflix vjs-theme-anime vjs-big-play-centered"
+          className="video-js vjs-theme-netflix vjs-big-play-centered"
         />
         
         {/* Netflix-style Quality Selector */}

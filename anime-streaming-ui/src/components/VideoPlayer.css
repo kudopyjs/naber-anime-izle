@@ -19,14 +19,13 @@
 }
 
 /* Netflix Theme */
-.vjs-theme-netflix, .vjs-theme-anime,
-.vjs-theme-anime {
+.vjs-theme-netflix {
   font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   width: 100% !important;
   max-width: 100% !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-tech {
+.vjs-theme-netflix .vjs-tech {
   width: 100% !important;
   height: 100% !important;
   object-fit: contain !important;
@@ -36,7 +35,7 @@
 }
 
 /* Big Play Button - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-big-play-button {
+.vjs-theme-netflix .vjs-big-play-button {
   width: 90px;
   height: 90px;
   border-radius: 50%;
@@ -49,20 +48,20 @@
   transform: translate(-50%, -50%);
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-big-play-button:hover {
+.vjs-theme-netflix .vjs-big-play-button:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: #fff;
   transform: translate(-50%, -50%) scale(1.1);
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-big-play-button .vjs-icon-placeholder:before {
+.vjs-theme-netflix .vjs-big-play-button .vjs-icon-placeholder:before {
   font-size: 48px;
   line-height: 82px;
   color: #fff;
 }
 
 /* Control Bar - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-control-bar {
+.vjs-theme-netflix .vjs-control-bar {
   background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 50%, transparent 100%) !important;
   height: 80px !important;
   display: flex !important;
@@ -80,19 +79,19 @@
 }
 
 /* Fade out controls when inactive */
-.vjs-theme-netflix, .vjs-theme-anime.vjs-user-inactive.vjs-playing .vjs-control-bar {
+.vjs-theme-netflix.vjs-user-inactive.vjs-playing .vjs-control-bar {
   opacity: 0 !important;
   transition: opacity 1s ease !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime:hover .vjs-control-bar,
-.vjs-theme-netflix, .vjs-theme-anime.vjs-paused .vjs-control-bar,
-.vjs-theme-netflix, .vjs-theme-anime.vjs-seeking .vjs-control-bar {
+.vjs-theme-netflix:hover .vjs-control-bar,
+.vjs-theme-netflix.vjs-paused .vjs-control-bar,
+.vjs-theme-netflix.vjs-seeking .vjs-control-bar {
   opacity: 1 !important;
 }
 
 /* Progress Bar - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-progress-control {
+.vjs-theme-netflix .vjs-progress-control {
   position: absolute !important;
   top: -6px !important;
   left: 0 !important;
@@ -102,34 +101,34 @@
   margin: 0 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-progress-holder {
+.vjs-theme-netflix .vjs-progress-holder {
   height: 6px !important;
   background: rgba(255, 255, 255, 0.3) !important;
   border-radius: 0 !important;
   margin: 0 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-play-progress {
+.vjs-theme-netflix .vjs-play-progress {
   background: #E50914 !important;
   border-radius: 0 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-play-progress:before {
+.vjs-theme-netflix .vjs-play-progress:before {
   display: none !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-load-progress {
+.vjs-theme-netflix .vjs-load-progress {
   background: rgba(255, 255, 255, 0.4) !important;
   border-radius: 0 !important;
 }
 
 /* Hover effect on progress bar */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-progress-control:hover .vjs-progress-holder {
+.vjs-theme-netflix .vjs-progress-control:hover .vjs-progress-holder {
   height: 8px !important;
   top: -1px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-progress-control:hover .vjs-play-progress:before {
+.vjs-theme-netflix .vjs-progress-control:hover .vjs-play-progress:before {
   display: block !important;
   content: '' !important;
   position: absolute !important;
@@ -144,7 +143,7 @@
 }
 
 /* Buttons - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-control {
+.vjs-theme-netflix .vjs-control {
   color: #fff !important;
   transition: all 0.2s ease !important;
   display: flex !important;
@@ -155,59 +154,59 @@
   outline: none !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-control:hover {
+.vjs-theme-netflix .vjs-control:hover {
   transform: scale(1.1) !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-play-control {
+.vjs-theme-netflix .vjs-play-control {
   font-size: 2.2em !important;
   width: 50px !important;
   margin-right: 10px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-fullscreen-control {
+.vjs-theme-netflix .vjs-fullscreen-control {
   font-size: 1.8em !important;
   width: 45px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-icon-placeholder:before {
+.vjs-theme-netflix .vjs-icon-placeholder:before {
   font-size: 1.8em !important;
   line-height: 80px !important;
 }
 
 /* Volume Panel - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-volume-panel {
+.vjs-theme-netflix .vjs-volume-panel {
   transition: all 0.3s ease !important;
   display: flex !important;
   align-items: center !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-volume-control {
+.vjs-theme-netflix .vjs-volume-control {
   width: 0 !important;
   opacity: 0 !important;
   transition: all 0.3s ease !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-volume-panel:hover .vjs-volume-control {
+.vjs-theme-netflix .vjs-volume-panel:hover .vjs-volume-control {
   opacity: 1 !important;
   width: 80px !important;
   margin-left: 10px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-volume-bar {
+.vjs-theme-netflix .vjs-volume-bar {
   background: rgba(255, 255, 255, 0.3) !important;
   border-radius: 2px !important;
   height: 4px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-volume-level {
+.vjs-theme-netflix .vjs-volume-level {
   background: #fff !important;
   border-radius: 2px !important;
   height: 4px !important;
 }
 
 /* Time Display - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-time-control {
+.vjs-theme-netflix .vjs-time-control {
   font-size: 14px !important;
   font-weight: 500 !important;
   line-height: 80px !important;
@@ -219,14 +218,14 @@
   min-width: auto !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-current-time,
-.vjs-theme-netflix, .vjs-theme-anime .vjs-duration {
+.vjs-theme-netflix .vjs-current-time,
+.vjs-theme-netflix .vjs-duration {
   display: inline-block !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-time-divider {
+.vjs-theme-netflix .vjs-time-divider {
   padding: 0 4px !important;
   line-height: 80px !important;
   display: inline-block !important;
@@ -235,12 +234,12 @@
   min-width: auto !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-remaining-time {
+.vjs-theme-netflix .vjs-remaining-time {
   display: none !important;
 }
 
 /* Playback Rate - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-playback-rate {
+.vjs-theme-netflix .vjs-playback-rate {
   display: flex !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -248,7 +247,7 @@
   font-weight: 500 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-playback-rate .vjs-playback-rate-value {
+.vjs-theme-netflix .vjs-playback-rate .vjs-playback-rate-value {
   font-size: 14px !important;
   font-weight: 500 !important;
   line-height: 80px !important;
@@ -259,7 +258,7 @@
   opacity: 1 !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-menu {
+.vjs-theme-netflix .vjs-menu {
   background: rgba(20, 20, 20, 0.98) !important;
   backdrop-filter: blur(20px) !important;
   border-radius: 4px !important;
@@ -267,7 +266,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8) !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-menu-item {
+.vjs-theme-netflix .vjs-menu-item {
   padding: 12px 20px !important;
   font-size: 14px !important;
   color: #fff !important;
@@ -275,21 +274,21 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-menu-item:last-child {
+.vjs-theme-netflix .vjs-menu-item:last-child {
   border-bottom: none !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-menu-item:hover {
+.vjs-theme-netflix .vjs-menu-item:hover {
   background: rgba(255, 255, 255, 0.1) !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-menu-item.vjs-selected {
+.vjs-theme-netflix .vjs-menu-item.vjs-selected {
   background: rgba(229, 9, 20, 0.2) !important;
   color: #E50914 !important;
 }
 
 /* Loading Spinner - Netflix Style */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-loading-spinner {
+.vjs-theme-netflix .vjs-loading-spinner {
   border-color: rgba(255, 255, 255, 0.2) !important;
   border-top-color: #E50914 !important;
   width: 60px !important;
@@ -298,12 +297,12 @@
 }
 
 /* Error Display */
-.vjs-theme-netflix, .vjs-theme-anime .vjs-error-display {
+.vjs-theme-netflix .vjs-error-display {
   background: rgba(0, 0, 0, 0.95) !important;
   backdrop-filter: blur(10px) !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime .vjs-error-display .vjs-modal-dialog-content {
+.vjs-theme-netflix .vjs-error-display .vjs-modal-dialog-content {
   color: #fff !important;
   font-size: 16px !important;
 }
@@ -319,11 +318,11 @@
 }
 
 .video-player-wrapper:hover .netflix-quality-selector,
-.vjs-theme-netflix, .vjs-theme-anime.vjs-paused .netflix-quality-selector {
+.vjs-theme-netflix.vjs-paused .netflix-quality-selector {
   opacity: 1;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime.vjs-fullscreen .netflix-quality-selector {
+.vjs-theme-netflix.vjs-fullscreen .netflix-quality-selector {
   opacity: 1;
   top: 30px;
   left: 30px;
@@ -413,49 +412,49 @@
 }
 
 /* Fullscreen Mode */
-.vjs-theme-netflix, .vjs-theme-anime.vjs-fullscreen {
+.vjs-theme-netflix.vjs-fullscreen {
   background: #000;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime.vjs-fullscreen .vjs-control-bar {
+.vjs-theme-netflix.vjs-fullscreen .vjs-control-bar {
   height: 90px !important;
   padding: 0 40px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime.vjs-fullscreen .vjs-time-control {
+.vjs-theme-netflix.vjs-fullscreen .vjs-time-control {
   font-size: 16px !important;
   line-height: 90px !important;
 }
 
-.vjs-theme-netflix, .vjs-theme-anime.vjs-fullscreen .vjs-playback-rate .vjs-playback-rate-value {
+.vjs-theme-netflix.vjs-fullscreen .vjs-playback-rate .vjs-playback-rate-value {
   font-size: 16px !important;
   line-height: 90px !important;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .vjs-theme-netflix, .vjs-theme-anime .vjs-big-play-button {
+  .vjs-theme-netflix .vjs-big-play-button {
     width: 70px;
     height: 70px;
   }
   
-  .vjs-theme-netflix, .vjs-theme-anime .vjs-big-play-button .vjs-icon-placeholder:before {
+  .vjs-theme-netflix .vjs-big-play-button .vjs-icon-placeholder:before {
     font-size: 36px;
     line-height: 62px;
   }
   
-  .vjs-theme-netflix, .vjs-theme-anime .vjs-control-bar {
+  .vjs-theme-netflix .vjs-control-bar {
     height: 60px !important;
     padding: 0 15px !important;
   }
   
-  .vjs-theme-netflix, .vjs-theme-anime .vjs-time-control {
+  .vjs-theme-netflix .vjs-time-control {
     font-size: 12px !important;
     line-height: 60px !important;
     padding: 0 6px !important;
   }
   
-  .vjs-theme-netflix, .vjs-theme-anime .vjs-icon-placeholder:before {
+  .vjs-theme-netflix .vjs-icon-placeholder:before {
     line-height: 60px !important;
   }
   
@@ -471,6 +470,6 @@
 }
 
 /* Smooth Transitions */
-.vjs-theme-netflix, .vjs-theme-anime * {
+.vjs-theme-netflix * {
   transition: all 0.2s ease;
 }
