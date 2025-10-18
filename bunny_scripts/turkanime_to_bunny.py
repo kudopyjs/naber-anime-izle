@@ -154,6 +154,34 @@ class BunnyUploader:
         # Yeni metod: Video'yu sunucuya indir, public URL ver, Bunny kendi fetch etsin
         return self._upload_via_public_url(video_url, title, collection_id)
     
+    def _schedule_file_deletion(self, file_path: str, delay_minutes: int = 20):
+        """Schedule file deletion after delay (using at command)"""
+        try:
+            import subprocess
+            
+            # Use 'at' command to schedule deletion
+            at_time = f"now + {delay_minutes} minutes"
+            delete_command = f"rm -f {file_path}"
+            
+            # Schedule with 'at'
+            process = subprocess.Popen(
+                ['at', at_time],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            stdout, stderr = process.communicate(input=delete_command)
+            
+            if process.returncode == 0:
+                print(f"  ⏰ Dosya {delay_minutes} dakika sonra silinecek")
+            else:
+                print(f"  ⚠️ Otomatik silme planlanamadı (manuel silin)")
+                
+        except Exception as e:
+            print(f"  ⚠️ Otomatik silme hatası: {e}")
+    
     def _upload_via_public_url(self, video_url: str, title: str, collection_id: str = None) -> Dict:
         """Video'yu sunucuya indir, public URL ver, Bunny fetch etsin"""
         import hashlib
@@ -230,8 +258,10 @@ class BunnyUploader:
             
             if response.status_code in [200, 201]:
                 print(f"  ✅ Bunny videoyu fetch ediyor!")
-                print(f"  ⏳ Bunny indirmeyi tamamladıktan sonra temp dosyayı silebilirsiniz")
-                print(f"     rm {local_path}")
+                print(f"  ⏳ Temp dosya 20 dakika sonra otomatik silinecek")
+                
+                # Schedule file deletion after 20 minutes
+                self._schedule_file_deletion(local_path, delay_minutes=20)
                 
                 return {
                     "success": True,
