@@ -63,10 +63,24 @@ function Watch() {
         throw new Error('Bölümler yüklenemedi')
       }
       
-      // Videoları tarihe göre sırala (en eski en başta)
-      const sortedVideos = [...episodesData.videos].sort((a, b) => 
-        new Date(a.dateUploaded) - new Date(b.dateUploaded)
-      )
+      // Videoları bölüm numarasına göre sırala
+      const sortedVideos = [...episodesData.videos].sort((a, b) => {
+        // Başlıktan bölüm numarasını çıkar
+        // Örnek: "Naruto - Naruto 11. Bölüm" -> 11
+        const getEpisodeNumber = (title) => {
+          const match = title.match(/(\d+)\.\s*Bölüm/i)
+          return match ? parseInt(match[1]) : 0
+        }
+        
+        const episodeA = getEpisodeNumber(a.title)
+        const episodeB = getEpisodeNumber(b.title)
+        
+        // Bölüm numarasına göre sırala, bulunamazsa tarihe göre
+        if (episodeA && episodeB) {
+          return episodeA - episodeB
+        }
+        return new Date(a.dateUploaded) - new Date(b.dateUploaded)
+      })
       
       setAllEpisodes(sortedVideos)
       setAnime({ ...foundAnime, currentSeason: season })
