@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import videojs from 'video.js';
-// import 'video.js/dist/video-js.css'; // Devre dışı - custom CSS kullanıyoruz
+import 'video.js/dist/video-js.css';
 import './VideoPlayer.css';
 
 export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {

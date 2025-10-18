@@ -1,45 +1,4 @@
-/* Netflix-Style Modern Video Player */
-
-/* Video.js Base Styles */
-.video-js {
-  position: relative;
-  padding: 0;
-  font-size: 10px;
-  vertical-align: top;
-  box-sizing: border-box;
-  color: #fff;
-  background-color: #000;
-  position: relative;
-  font-family: Arial, Helvetica, sans-serif;
-  line-height: 1;
-}
-
-.video-js *,
-.video-js *:before,
-.video-js *:after {
-  box-sizing: inherit;
-}
-
-.video-js button {
-  background: none;
-  border: none;
-  color: inherit;
-  display: inline-block;
-  font-size: inherit;
-  line-height: inherit;
-  text-transform: none;
-  text-decoration: none;
-  transition: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-}
-
-.vjs-icon-placeholder:before {
-  font-family: VideoJS;
-  font-weight: normal;
-  font-style: normal;
-}
+/* Netflix-Style Modern Video Player - Overrides Video.js defaults */
 
 .video-player-wrapper {
   width: 100%;
