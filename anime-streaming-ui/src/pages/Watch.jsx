@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
@@ -16,45 +16,10 @@ function Watch() {
   const [allEpisodes, setAllEpisodes] = useState([])
   const [currentEpisodeIndex, setCurrentEpisodeIndex] = useState(-1)
   const [videoId, setVideoId] = useState(null)
-  const videoRef = useRef(null)
-  const hlsRef = useRef(null)
 
   useEffect(() => {
     loadVideoData()
   }, [animeSlug, seasonNumber, episodeNumber])
-
-  useEffect(() => {
-    console.log('🔄 useEffect triggered:', { 
-      hasVideoData: !!videoData, 
-      hasVideoRef: !!videoRef.current,
-      videoStatus: videoData?.status 
-    })
-    
-    // Video element'in render edilmesi için kısa bir delay
-    if (videoData && !videoRef.current) {
-      console.log('⏳ Waiting for video element to mount...')
-      const timer = setTimeout(() => {
-        if (videoRef.current) {
-          console.log('🎬 Initializing player (delayed)...')
-          initializePlayer()
-        } else {
-          console.error('❌ Video element still not mounted after delay!')
-        }
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-    
-    if (videoData && videoRef.current) {
-      console.log('🎬 Initializing player...')
-      const cleanup = initializePlayer()
-      return cleanup
-    } else {
-      console.log('⏸️ Player not initialized:', {
-        videoData: !!videoData,
-        videoRef: !!videoRef.current
-      })
-    }
-  }, [videoData, videoId])
 
   const loadVideoData = async () => {
     setLoading(true)
@@ -246,8 +211,7 @@ function Watch() {
                   Video Length: {videoData.length ? `${Math.floor(videoData.length / 60)} min` : 'Unknown'}<br/>
                   <br/>
                   <strong>Player Status:</strong><br/>
-                  Video Element: {videoRef.current ? '✅ Mounted' : '❌ Not Mounted'}<br/>
-                  HLS Instance: {hlsRef.current ? '✅ Active' : '❌ Not Active'}<br/>
+                  VideoPlayerPlyr Component: ✅ Active<br/>
                   <br/>
                   {videoData.status !== 4 && videoData.status !== 5 ? (
                     <span className="text-red-400">
