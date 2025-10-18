@@ -304,7 +304,9 @@ class BunnyUploader:
             file_size = os.path.getsize(file_path)
             url = f"{self.base_url}/videos/{video_id}"
             
-            print(f"  🚀 pycurl ile yükleniyor (C library - daha hızlı)...", flush=True)
+            print(f"  🚀 pycurl ile yükleniyor...", flush=True)
+            print(f"  ⚠️  NOT: Bunny API upload hızı ~0.3-0.5 MB/s ile sınırlı", flush=True)
+            print(f"  ⏱️  Tahmini süre: {(file_size / (1024*1024)) / 0.4 / 60:.1f} dakika", flush=True)
             
             start_time = time.time()
             last_progress = [0, 0, 0]  # [progress%, uploaded_bytes, elapsed_time]
