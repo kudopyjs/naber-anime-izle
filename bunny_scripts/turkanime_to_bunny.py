@@ -212,6 +212,21 @@ class BunnyUploader:
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
             
+            # yt-dlp bazen .webm veya başka uzantı kullanabilir, gerçek dosyayı bul
+            if not os.path.exists(local_path):
+                # .mp4 yoksa, aynı isimle başka uzantı ara
+                base_path = local_path.rsplit('.', 1)[0]
+                for ext in ['.webm', '.mkv', '.mp4']:
+                    alt_path = base_path + ext
+                    if os.path.exists(alt_path):
+                        print(f"  ℹ️ Dosya {ext} uzantısıyla kaydedildi, .mp4'e dönüştürülüyor...")
+                        # Rename to .mp4
+                        os.rename(alt_path, local_path)
+                        break
+            
+            if not os.path.exists(local_path):
+                raise FileNotFoundError(f"İndirilen dosya bulunamadı: {local_path}")
+            
             file_size = os.path.getsize(local_path)
             print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
             print(f"  🌐 Public URL: {public_url}")
@@ -302,6 +317,19 @@ class BunnyUploader:
             
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
+            
+            # yt-dlp bazen .webm veya başka uzantı kullanabilir, gerçek dosyayı bul
+            if not os.path.exists(temp_file):
+                base_path = temp_file.rsplit('.', 1)[0]
+                for ext in ['.webm', '.mkv', '.mp4']:
+                    alt_path = base_path + ext
+                    if os.path.exists(alt_path):
+                        print(f"  ℹ️ Dosya {ext} uzantısıyla kaydedildi, .mp4'e dönüştürülüyor...")
+                        os.rename(alt_path, temp_file)
+                        break
+            
+            if not os.path.exists(temp_file):
+                raise FileNotFoundError(f"İndirilen dosya bulunamadı: {temp_file}")
             
             file_size = os.path.getsize(temp_file)
             print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
