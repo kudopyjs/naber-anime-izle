@@ -583,10 +583,17 @@ class TurkAnimeToBunny:
                 # Rate limiting için bekle
                 time.sleep(2)
                 
+            except KeyboardInterrupt:
+                print("\n\n⚠️ Kullanıcı tarafından iptal edildi!")
+                break
             except Exception as e:
+                import traceback
                 print(f"❌ Hata: {e}")
+                print(f"📋 Detaylı hata:")
+                traceback.print_exc()
                 self.stats["failed"] += 1
                 self._log_error(anime_slug, i, bolum.title, str(e))
+                print(f"\n⏭️ Sonraki bölüme geçiliyor...\n")
                 continue
         
         # Özet
