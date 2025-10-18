@@ -196,9 +196,9 @@ class BunnyUploader:
             local_path = os.path.join(temp_dir, filename)
             public_url = f"https://keyani.me/temp/{filename}"
             
-            print(f"  📥 Video indiriliyor (yt-dlp + aria2c)...")
+            print(f"  📥 Video indiriliyor (yt-dlp)...")
             
-            # yt-dlp options
+            # yt-dlp options (sadece yt-dlp, aria2c yok)
             ydl_opts = {
                 'outtmpl': local_path,
                 'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
@@ -208,13 +208,6 @@ class BunnyUploader:
                 'retries': 10,
                 'fragment_retries': 10,
             }
-            
-            # aria2c if available
-            import shutil
-            if shutil.which('aria2c'):
-                print(f"  ⚡ aria2c ile hızlı indirme (16 paralel)")
-                ydl_opts['external_downloader'] = 'aria2c'
-                ydl_opts['external_downloader_args'] = ['-x', '16', '-s', '16', '-k', '1M']
             
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
@@ -295,26 +288,17 @@ class BunnyUploader:
             temp_dir = tempfile.mkdtemp(prefix='bunny_upload_')
             temp_file = os.path.join(temp_dir, 'video.mp4')
             
-            # yt-dlp ile indir (HLS optimize)
+            # yt-dlp ile indir (sadece yt-dlp)
             ydl_opts = {
                 'outtmpl': temp_file,
                 'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
                 'quiet': False,
-                'concurrent_fragment_downloads': 8,  # 8 parça paralel indir (HLS için)
-                'http_chunk_size': 10485760,  # 10MB chunks
+                'concurrent_fragment_downloads': 8,
+                'http_chunk_size': 10485760,
                 'retries': 10,
                 'fragment_retries': 10,
                 'skip_unavailable_fragments': False,
             }
-            
-            # aria2c varsa kullan (çok daha hızlı HLS downloader)
-            import shutil
-            if shutil.which('aria2c'):
-                print(f"  ⚡ aria2c ile hızlı indirme aktif (16 paralel bağlantı)")
-                ydl_opts['external_downloader'] = 'aria2c'
-                ydl_opts['external_downloader_args'] = ['-x', '16', '-s', '16', '-k', '1M']
-            else:
-                print(f"  ℹ️ aria2c yok, yt-dlp ile indiriliyor (8 paralel)")
             
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
