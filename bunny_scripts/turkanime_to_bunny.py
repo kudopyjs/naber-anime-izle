@@ -1,728 +1,157 @@
-"""
-TurkAnime'den Bunny.net'e Direkt Video Aktarma
-Bu script turkanime-indirici API'sini kullanarak videoları
-bilgisayara indirmeden direkt Bunny.net'e yükler.
-
-Kullanım:
-    python turkanime_to_bunny.py --anime "naruto" --start 1 --end 10
-    python turkanime_to_bunny.py --anime "one-piece" --all
-    python turkanime_to_bunny.py --list  # Tüm animeleri listele
-"""
-
 import os
 import sys
-import io
-
-# Windows encoding fix
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
-import argparse
 import requests
+import yt_dlp
 from pathlib import Path
+import turkanime_api as ta
+import threading
 import time
-from typing import Optional, List, Dict
+import subprocess
 import json
-import tempfile
-from yt_dlp import YoutubeDL
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Try to import pycurl for faster uploads
-try:
-    import pycurl
-    from io import BytesIO
-    HAS_PYCURL = True
-except ImportError:
-    HAS_PYCURL = False
-    print("⚠️ pycurl not installed. Install for faster uploads: pip install pycurl")
-
-# Try to import TUS for resumable uploads
-try:
-    from tusclient import client as tus_client
-    HAS_TUS = True
-except ImportError:
-    HAS_TUS = False
-    print("⚠️ tuspy not installed. Install for TUS protocol: pip install tuspy")
-
-# turkanime-indirici kütüphanesini import et
-try:
-    import turkanime_api as ta
-except ImportError:
-    print("❌ turkanime-indirici kurulu değil!")
-    print("Kurulum: pip install turkanime-cli")
-    sys.exit(1)
-
-# Bunny.net API bilgileri
-BUNNY_API_KEY = "53c7d7fb-32c8-491e-aeffa1a04974-1412-4208"
-BUNNY_LIBRARY_ID = "515326"
-
-if not BUNNY_API_KEY or not BUNNY_LIBRARY_ID:
-    print("❌ Bunny.net API bilgileri bulunamadı!")
-    print("Lütfen environment variables ayarlayın:")
-    print("  export BUNNY_STREAM_API_KEY=your-api-key")
-    print("  export BUNNY_LIBRARY_ID=your-library-id")
-    sys.exit(1)
-
-
-class BunnyUploader:
-    """Bunny.net'e video yükleme sınıfı"""
-    
-    def __init__(self, api_key: str, library_id: str):
-        self.api_key = api_key
+class BunnyNetUploader:
+    def __init__(self, library_id, api_key):
+        """
+        Bunny.net Stream Library'ye yükleme yapan sınıf
+        
+        Args:
+            library_id: Bunny.net Stream Library ID
+            api_key: Bunny.net API Key
+        """
         self.library_id = library_id
-        self.base_url = f"https://video.bunnycdn.com/library/{library_id}"
-        self.headers = {
-            "AccessKey": api_key,
+        self.api_key = api_key
+        self.base_url = "https://video.bunnycdn.com"
+        
+    def create_video(self, title, collection_id=None):
+        """
+        Bunny.net'te yeni bir video oluştur
+        
+        Returns:
+            video_id: Oluşturulan videonun ID'si
+        """
+        url = f"{self.base_url}/library/{self.library_id}/videos"
+        headers = {
+            "AccessKey": self.api_key,
             "Content-Type": "application/json"
         }
+        data = {"title": title}
+        
+        if collection_id:
+            data["collectionId"] = collection_id
+            
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        return response.json()["guid"]
     
-    def list_collections(self) -> List[Dict]:
-        """Tüm collection'ları listele"""
-        try:
-            response = requests.get(
-                f"{self.base_url}/collections",
-                headers={"AccessKey": self.api_key}
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("items", [])
-            return []
-        except Exception as e:
-            print(f"⚠️ Collection listesi alınamadı: {e}")
-            return []
+    def upload_video(self, video_id, file_path):
+        """
+        Video dosyasını Bunny.net'e yükle
+        
+        Args:
+            video_id: Bunny.net video ID
+            file_path: Yüklenecek dosyanın yolu
+        """
+        url = f"{self.base_url}/library/{self.library_id}/videos/{video_id}"
+        headers = {
+            "AccessKey": self.api_key
+        }
+        
+        with open(file_path, 'rb') as f:
+            response = requests.put(url, data=f, headers=headers)
+            response.raise_for_status()
+        
+        return response.json()
     
-    def find_collection_by_name(self, name: str) -> Optional[str]:
-        """İsme göre collection bul (TAM EŞLEŞME - exact match)"""
+    def list_collections(self):
+        """
+        Tüm collection'ları listele
+        
+        Returns:
+            list: Collection listesi
+        """
+        url = f"{self.base_url}/library/{self.library_id}/collections"
+        headers = {"AccessKey": self.api_key}
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json().get("items", [])
+    
+    def find_collection_by_name(self, name):
+        """
+        İsme göre collection bul (TAM EŞLEŞME)
+        
+        Returns:
+            collection_id veya None
+        """
         collections = self.list_collections()
-        
-        # Debug: Mevcut collection'ları göster
-        if collections:
-            print(f"  🔍 Mevcut collection'lar kontrol ediliyor...")
-            for collection in collections:
-                coll_name = collection.get("name", "")
-                print(f"     - {coll_name}")
-        
-        # TAM EŞLEŞME kontrolü (case-sensitive)
         for collection in collections:
-            coll_name = collection.get("name", "")
-            if coll_name == name:  # Tam eşleşme
-                collection_id = collection.get("guid")
-                print(f"✅ Mevcut collection bulundu (tam eşleşme): '{name}' (ID: {collection_id})")
-                return collection_id
-        
-        print(f"  ℹ️ '{name}' isimli collection bulunamadı")
+            if collection.get("name") == name:
+                return collection.get("guid")
         return None
     
-    def get_or_create_collection(self, name: str, parent_id: Optional[str] = None) -> Optional[str]:
-        """Collection'ı bul, yoksa oluştur (parent collection içinde)"""
+    def get_or_create_collection(self, name):
+        """
+        Collection'ı bul, yoksa oluştur
+        
+        Returns:
+            collection_id: Collection ID'si
+        """
         # Önce var mı kontrol et
         collection_id = self.find_collection_by_name(name)
         if collection_id:
+            print(f"✅ Mevcut collection bulundu: '{name}'")
             return collection_id
         
         # Yoksa oluştur
         print(f"📁 Yeni collection oluşturuluyor: {name}")
-        return self.create_collection(name, parent_id)
+        return self.create_collection(name)
     
-    def create_collection(self, name: str, parent_id: Optional[str] = None) -> Optional[str]:
-        """Bunny'de koleksiyon (klasör) oluştur"""
-        try:
-            payload = {"name": name}
-            if parent_id:
-                payload["parentId"] = parent_id
-                print(f"  📂 Parent Collection ID: {parent_id}")
-            
-            response = requests.post(
-                f"{self.base_url}/collections",
-                headers=self.headers,
-                json=payload
-            )
-            if response.status_code == 200:
-                collection_id = response.json().get("guid")
-                print(f"✅ Koleksiyon oluşturuldu: {name} (ID: {collection_id})")
-                return collection_id
-            else:
-                print(f"⚠️ Koleksiyon oluşturulamadı: HTTP {response.status_code}")
-                print(f"   Response: {response.text[:200]}")
-                return None
-        except Exception as e:
-            print(f"❌ Koleksiyon oluşturma hatası: {e}")
-            return None
-    
-    def upload_from_url(self, video_url: str, title: str, collection_id: str = None) -> Dict:
-        """URL'den Bunny.net'e video aktar (via public URL method)"""
-        # Yeni metod: Video'yu sunucuya indir, public URL ver, Bunny kendi fetch etsin
-        return self._upload_via_public_url(video_url, title, collection_id)
-    
-    def _schedule_file_deletion(self, file_path: str, delay_minutes: int = 20):
-        """Schedule file deletion after delay (using at command)"""
-        try:
-            import subprocess
-            
-            # Use 'at' command to schedule deletion
-            at_time = f"now + {delay_minutes} minutes"
-            delete_command = f"rm -f {file_path}"
-            
-            # Schedule with 'at'
-            process = subprocess.Popen(
-                ['at', at_time],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            stdout, stderr = process.communicate(input=delete_command)
-            
-            if process.returncode == 0:
-                print(f"  ⏰ Dosya {delay_minutes} dakika sonra silinecek")
-            else:
-                print(f"  ⚠️ Otomatik silme planlanamadı (manuel silin)")
-                
-        except Exception as e:
-            print(f"  ⚠️ Otomatik silme hatası: {e}")
-    
-    def _upload_via_public_url(self, video_url: str, title: str, collection_id: str = None) -> Dict:
-        """Video'yu sunucuya indir, public URL ver, Bunny fetch etsin"""
-        import hashlib
+    def create_collection(self, name):
+        """
+        Bunny.net'te yeni bir collection (klasör) oluştur
         
-        try:
-            # Temp dir
-            temp_dir = "/var/www/naber-anime-izle/temp"
-            os.makedirs(temp_dir, exist_ok=True)
-            
-            # Unique filename
-            filename = hashlib.md5(video_url.encode()).hexdigest() + ".mp4"
-            local_path = os.path.join(temp_dir, filename)
-            public_url = f"https://keyani.me/temp/{filename}"
-            
-            print(f"  📥 Video indiriliyor (yt-dlp)...")
-            
-            # yt-dlp options (sadece yt-dlp, aria2c yok)
-            ydl_opts = {
-                'outtmpl': local_path,
-                'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
-                'quiet': False,
-                'concurrent_fragment_downloads': 8,
-                'http_chunk_size': 10485760,
-                'retries': 10,
-                'fragment_retries': 10,
-            }
-            
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-            
-            # yt-dlp bazen .webm veya başka uzantı kullanabilir, gerçek dosyayı bul
-            if not os.path.exists(local_path):
-                # .mp4 yoksa, aynı isimle başka uzantı ara
-                base_path = local_path.rsplit('.', 1)[0]
-                for ext in ['.webm', '.mkv', '.mp4']:
-                    alt_path = base_path + ext
-                    if os.path.exists(alt_path):
-                        print(f"  ℹ️ Dosya {ext} uzantısıyla kaydedildi, .mp4'e dönüştürülüyor...")
-                        # Rename to .mp4
-                        os.rename(alt_path, local_path)
-                        break
-            
-            if not os.path.exists(local_path):
-                raise FileNotFoundError(f"İndirilen dosya bulunamadı: {local_path}")
-            
-            file_size = os.path.getsize(local_path)
-            print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
-            print(f"  🌐 Public URL: {public_url}")
-            
-            # 1. Create video
-            payload = {"title": title}
-            if collection_id:
-                payload["collectionId"] = collection_id
-                print(f"  📁 Collection ID ekleniyor: {collection_id}")
-            
-            response = requests.post(
-                f"{self.base_url}/videos",
-                headers=self.headers,
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                return {
-                    "success": False,
-                    "error": f"Video oluşturulamadı: {response.status_code}"
-                }
-            
-            video_id = response.json().get("guid")
-            print(f"  ✅ Video oluşturuldu: {video_id}")
-            
-            # 2. Tell Bunny to fetch from URL
-            print(f"  📤 Bunny'ye fetch komutu gönderiliyor...")
-            fetch_payload = {"url": public_url}
-            
-            response = requests.post(
-                f"{self.base_url}/videos/{video_id}/fetch",
-                headers=self.headers,
-                json=fetch_payload
-            )
-            
-            print(f"  📡 Fetch response: {response.status_code}")
-            
-            if response.status_code in [200, 201]:
-                print(f"  ✅ Bunny videoyu fetch ediyor!")
-                print(f"  ⏳ Temp dosya 20 dakika sonra otomatik silinecek")
-                
-                # Schedule file deletion after 20 minutes
-                self._schedule_file_deletion(local_path, delay_minutes=20)
-                
-                return {
-                    "success": True,
-                    "video_id": video_id,
-                    "title": title,
-                    "temp_file": local_path
-                }
-            else:
-                print(f"  ⚠️ Fetch başarısız: {response.status_code}")
-                print(f"  ⚠️ Fallback: Direkt upload deneniyor...")
-                # Fallback: direkt upload
-                result = self.upload_file_direct(local_path, title, collection_id)
-                # Clean up
-                try:
-                    os.remove(local_path)
-                except:
-                    pass
-                return result
-                
-        except Exception as e:
-            print(f"  ❌ Public URL upload hatası: {e}")
-            # Fallback: eski metod
-            return self._download_and_upload(video_url, title, collection_id)
-    
-    def _download_and_upload(self, video_url: str, title: str, collection_id: str = None) -> Dict:
-        """Fetch başarısız olursa: İndir ve yükle"""
-        try:
-            print(f"  📥 Video indiriliyor (yt-dlp)...")
-            
-            # Temp dosya
-            temp_dir = tempfile.mkdtemp(prefix='bunny_upload_')
-            temp_file = os.path.join(temp_dir, 'video.mp4')
-            
-            # yt-dlp ile indir (sadece yt-dlp)
-            ydl_opts = {
-                'outtmpl': temp_file,
-                'format': 'bestvideo[height=1080]+bestaudio/bestvideo+bestaudio/best',
-                'quiet': False,
-                'concurrent_fragment_downloads': 8,
-                'http_chunk_size': 10485760,
-                'retries': 10,
-                'fragment_retries': 10,
-                'skip_unavailable_fragments': False,
-            }
-            
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-            
-            # yt-dlp bazen .webm veya başka uzantı kullanabilir, gerçek dosyayı bul
-            if not os.path.exists(temp_file):
-                base_path = temp_file.rsplit('.', 1)[0]
-                for ext in ['.webm', '.mkv', '.mp4']:
-                    alt_path = base_path + ext
-                    if os.path.exists(alt_path):
-                        print(f"  ℹ️ Dosya {ext} uzantısıyla kaydedildi, .mp4'e dönüştürülüyor...")
-                        os.rename(alt_path, temp_file)
-                        break
-            
-            if not os.path.exists(temp_file):
-                raise FileNotFoundError(f"İndirilen dosya bulunamadı: {temp_file}")
-            
-            file_size = os.path.getsize(temp_file)
-            print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
-            
-            # Bunny'e yükle
-            print(f"  📤 Bunny.net'e yükleniyor...")
-            result = self.upload_file_direct(
-                file_path=temp_file,
-                title=title,
-                collection_id=collection_id
-            )
-            
-            # Cleanup
-            try:
-                import shutil
-                shutil.rmtree(temp_dir)
-            except:
-                pass
-            
-            return result
-            
-        except Exception as e:
-            print(f"  ❌ Download & upload hatası: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    def _upload_with_multipart(self, file_path: str, video_id: str) -> bool:
-        """Multipart upload (parça parça, .ts gibi)"""
-        try:
-            file_size = os.path.getsize(file_path)
-            url = f"{self.base_url}/videos/{video_id}"
-            chunk_size = 5 * 1024 * 1024  # 5MB chunks (like .ts segments)
-            
-            print(f"  🚀 Multipart upload (5MB chunks, .ts gibi)...", flush=True)
-            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB", flush=True)
-            print(f"  📦 Toplam parça: {(file_size + chunk_size - 1) // chunk_size}", flush=True)
-            
-            start_time = time.time()
-            uploaded = 0
-            chunk_num = 0
-            
-            with open(file_path, 'rb') as f:
-                while True:
-                    chunk = f.read(chunk_size)
-                    if not chunk:
-                        break
-                    
-                    chunk_num += 1
-                    chunk_start = uploaded
-                    chunk_end = uploaded + len(chunk) - 1
-                    
-                    # Upload chunk with range header
-                    headers = {
-                        'AccessKey': self.api_key,
-                        'Content-Type': 'application/octet-stream',
-                        'Content-Range': f'bytes {chunk_start}-{chunk_end}/{file_size}'
-                    }
-                    
-                    response = requests.put(
-                        url,
-                        headers=headers,
-                        data=chunk,
-                        timeout=300
-                    )
-                    
-                    if response.status_code not in [200, 201, 206]:
-                        print(f"  ❌ Chunk {chunk_num} failed: {response.status_code}")
-                        return False
-                    
-                    uploaded += len(chunk)
-                    progress = (uploaded / file_size) * 100
-                    elapsed = time.time() - start_time
-                    speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
-                    
-                    # Her chunk'ta progress göster
-                    print(f"    [Chunk {chunk_num}] {progress:.1f}% | {uploaded / (1024*1024):.1f}/{file_size / (1024*1024):.1f} MB | {speed:.2f} MB/s", flush=True)
-            
-            elapsed = time.time() - start_time
-            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
-            print(f"  ✅ Multipart upload tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
-            
-            return True
-            
-        except Exception as e:
-            print(f"  ⚠️ Multipart upload failed: {e}")
-            return False
-    
-    def _upload_with_tus(self, file_path: str, video_id: str) -> bool:
-        """TUS protocol ile resumable upload (en hızlı ve güvenilir)"""
-        if not HAS_TUS:
-            return False
+        Returns:
+            collection_id: Oluşturulan collection ID'si
+        """
+        url = f"{self.base_url}/library/{self.library_id}/collections"
+        headers = {
+            "AccessKey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        data = {"name": name}
         
-        try:
-            file_size = os.path.getsize(file_path)
-            
-            print(f"  🚀 TUS protocol ile yükleniyor (resumable upload)...", flush=True)
-            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB", flush=True)
-            
-            # Bunny TUS endpoint
-            tus_url = f"https://video.bunnycdn.com/tusupload"
-            
-            # Headers for TUS client
-            tus_headers = {
-                'AuthorizationSignature': self.api_key,
-                'AuthorizationExpire': str(int(time.time()) + 3600),
-                'VideoId': video_id,
-                'LibraryId': self.library_id
-            }
-            
-            # TUS client setup with headers
-            my_client = tus_client.TusClient(tus_url, headers=tus_headers)
-            
-            # Metadata
-            metadata = {
-                'videoLibraryId': self.library_id,
-                'guid': video_id,
-                'filename': os.path.basename(file_path)
-            }
-            
-            # Uploader
-            uploader = my_client.uploader(
-                file_path,
-                chunk_size=10 * 1024 * 1024,  # 10MB chunks
-                metadata=metadata
-            )
-            
-            # Progress tracking
-            start_time = time.time()
-            last_progress = [0]
-            
-            # Set progress callback on uploader object
-            def progress_callback(offset, total):
-                progress = (offset / total) * 100
-                if progress - last_progress[0] >= 1 or offset == total:
-                    elapsed = time.time() - start_time
-                    speed = (offset / (1024*1024)) / elapsed if elapsed > 0 else 0
-                    print(f"    [{progress:.1f}%] {offset / (1024*1024):.1f}/{total / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
-                    last_progress[0] = progress
-            
-            # Upload (TUS library doesn't support progress callback in this version)
-            uploader.upload()
-            
-            elapsed = time.time() - start_time
-            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
-            print(f"  ✅ TUS upload tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
-            
-            return True
-            
-        except Exception as e:
-            print(f"  ⚠️ TUS upload failed: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()
+        return response.json()["guid"]
     
-    def _upload_with_pycurl(self, file_path: str, video_id: str) -> bool:
-        """pycurl ile hızlı upload (C library, çok daha hızlı)"""
-        if not HAS_PYCURL:
-            return False
+    def list_videos(self, collection_id=None, items_per_page=1000):
+        """
+        Videoları listele (collection'a göre filtrelenebilir)
         
-        try:
-            file_size = os.path.getsize(file_path)
-            url = f"{self.base_url}/videos/{video_id}"
-            
-            print(f"  🚀 pycurl ile yükleniyor...", flush=True)
-            print(f"  ⚠️  NOT: Bunny API upload hızı ~0.3-0.5 MB/s ile sınırlı", flush=True)
-            print(f"  ⏱️  Tahmini süre: {(file_size / (1024*1024)) / 0.4 / 60:.1f} dakika", flush=True)
-            
-            start_time = time.time()
-            last_progress = [0, 0, 0]  # [progress%, uploaded_bytes, elapsed_time]
-            
-            def progress_callback(download_total, downloaded, upload_total, uploaded):
-                if upload_total > 0:
-                    progress = (uploaded / upload_total) * 100
-                    # Her %1'de bir göster (daha sık)
-                    if progress - last_progress[0] >= 1 or uploaded == upload_total:
-                        elapsed = time.time() - start_time
-                        speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
-                        # Anlık hız da göster
-                        instant_speed = (uploaded - last_progress[1]) / (elapsed - last_progress[2]) / (1024*1024) if elapsed > last_progress[2] else 0
-                        print(f"    [{progress:.1f}%] {uploaded / (1024*1024):.1f}/{upload_total / (1024*1024):.1f} MB | Avg: {speed:.2f} MB/s | Now: {instant_speed:.2f} MB/s", flush=True)
-                        last_progress[0] = progress
-                        last_progress[1] = uploaded
-                        last_progress[2] = elapsed
-            
-            # Open file
-            file_handle = open(file_path, 'rb')
-            
-            c = pycurl.Curl()
-            c.setopt(pycurl.URL, url)
-            c.setopt(pycurl.CUSTOMREQUEST, "PUT")  # Bunny uses PUT
-            c.setopt(pycurl.UPLOAD, 1)
-            c.setopt(pycurl.READDATA, file_handle)
-            c.setopt(pycurl.INFILESIZE, file_size)
-            c.setopt(pycurl.HTTPHEADER, [
-                f"AccessKey: {self.api_key}",
-                "Content-Type: application/octet-stream"
-            ])
-            c.setopt(pycurl.NOPROGRESS, 0)
-            c.setopt(pycurl.XFERINFOFUNCTION, progress_callback)
-            c.setopt(pycurl.WRITEDATA, BytesIO())
-            c.setopt(pycurl.TCP_NODELAY, 1)
-            c.setopt(pycurl.BUFFERSIZE, 16 * 1024 * 1024)
-            
-            c.perform()
-            status_code = c.getinfo(pycurl.RESPONSE_CODE)
-            
-            file_handle.close()
-            
-            # Debug info
-            upload_speed = c.getinfo(pycurl.SPEED_UPLOAD)
-            total_time = c.getinfo(pycurl.TOTAL_TIME)
-            namelookup_time = c.getinfo(pycurl.NAMELOOKUP_TIME)
-            connect_time = c.getinfo(pycurl.CONNECT_TIME)
-            pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
-            starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
-            
-            c.close()
-            
-            elapsed = time.time() - start_time
-            speed = (file_size / (1024*1024)) / elapsed if elapsed > 0 else 0
-            
-            # Status code kontrolü
-            if status_code == 200:
-                print(f"  ✅ Yükleme tamamlandı! ({elapsed:.1f}s, {speed:.2f} MB/s)", flush=True)
-                print(f"  📊 Debug Info:")
-                print(f"     DNS Lookup: {namelookup_time*1000:.0f}ms")
-                print(f"     Connect: {connect_time*1000:.0f}ms")
-                print(f"     Pre-transfer: {pretransfer_time*1000:.0f}ms")
-                print(f"     Start transfer: {starttransfer_time*1000:.0f}ms")
-                print(f"     Total time: {total_time:.1f}s")
-                print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
-                return True
-            else:
-                print(f"  ❌ pycurl upload failed: HTTP {status_code}")
-                print(f"     Total time: {total_time:.1f}s")
-                print(f"     Upload speed (curl): {upload_speed / (1024*1024):.2f} MB/s")
-                return False
-            
-        except Exception as e:
-            print(f"  ⚠️ pycurl upload failed: {e}")
-            return False
+        Returns:
+            list: Video listesi
+        """
+        url = f"{self.base_url}/library/{self.library_id}/videos"
+        headers = {"AccessKey": self.api_key}
+        params = {"itemsPerPage": items_per_page}
+        
+        if collection_id:
+            params["collection"] = collection_id
+        
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json().get("items", [])
     
-    def upload_file_direct(self, file_path: str, title: str, collection_id: str = None) -> Dict:
-        """Dosyayı direkt Bunny.net'e yükle"""
+    def video_exists(self, title, collection_id=None):
+        """
+        Videonun Bunny'de olup olmadığını kontrol et
+        
+        Returns:
+            bool: Video varsa True
+        """
         try:
-            # 1. Video oluştur
-            payload = {"title": title}
-            if collection_id:
-                payload["collectionId"] = collection_id
-                print(f"  📁 Collection ID ekleniyor: {collection_id}")
-            
-            print(f"  🔧 API Request: POST {self.base_url}/videos")
-            print(f"  📦 Payload: {payload}")
-            
-            response = requests.post(
-                f"{self.base_url}/videos",
-                headers=self.headers,
-                json=payload
-            )
-            
-            print(f"  📡 Response Status: {response.status_code}")
-            
-            if response.status_code != 200:
-                return {
-                    "success": False,
-                    "error": f"Video oluşturulamadı: {response.status_code} - {response.text}"
-                }
-            
-            response_data = response.json()
-            video_id = response_data.get("guid")
-            print(f"  ✅ Video oluşturuldu: {video_id}")
-            print(f"  ℹ️ Collection taşıma işlemi tüm videolar yüklendikten sonra yapılacak")
-            
-            # 2. Dosyayı yükle
-            file_size = os.path.getsize(file_path)
-            print(f"  📦 Dosya boyutu: {file_size / (1024*1024):.2f} MB")
-            
-            # pycurl dene (en hızlı)
-            if HAS_PYCURL:
-                if self._upload_with_pycurl(file_path, video_id):
-                    return {
-                        "success": True,
-                        "video_id": video_id,
-                        "title": title
-                    }
-                else:
-                    print(f"  ⚠️ pycurl başarısız, requests ile deneniyor...")
-            
-            # Fallback: requests ile yükle
-            print(f"  ⬆️ Yükleme başlıyor (requests - chunk-based)...", flush=True)
-            
-            start_time = time.time()
-            chunk_size = 16 * 1024 * 1024  # 16MB chunks (optimize for high-speed connections)
-            
-            # Generator ile chunk-based upload
-            def file_chunks_with_progress():
-                uploaded = 0
-                last_print = 0
-                
-                with open(file_path, 'rb') as f:
-                    while True:
-                        chunk = f.read(chunk_size)
-                        if not chunk:
-                            break
-                        
-                        uploaded += len(chunk)
-                        progress = (uploaded / file_size) * 100
-                        
-                        # Her %5'te bir progress göster
-                        if progress - last_print >= 5 or uploaded == file_size:
-                            elapsed = time.time() - start_time
-                            speed = (uploaded / (1024*1024)) / elapsed if elapsed > 0 else 0
-                            print(f"    [{progress:.0f}%] {uploaded / (1024*1024):.1f}/{file_size / (1024*1024):.1f} MB ({speed:.2f} MB/s)", flush=True)
-                            last_print = progress
-                        
-                        yield chunk
-            
-            # Session ile connection pooling ve keep-alive
-            session = requests.Session()
-            session.headers.update({
-                "AccessKey": self.api_key,
-                "Content-Type": "application/octet-stream"
-            })
-            
-            # HTTP adapter ile connection settings
-            from requests.adapters import HTTPAdapter
-            from urllib3.util.retry import Retry
-            
-            adapter = HTTPAdapter(
-                pool_connections=1,
-                pool_maxsize=1,
-                max_retries=Retry(total=3, backoff_factor=1)
-            )
-            session.mount('https://', adapter)
-            
-            upload_response = session.put(
-                f"{self.base_url}/videos/{video_id}",
-                data=file_chunks_with_progress(),
-                timeout=600  # 10 dakika timeout
-            )
-            
-            session.close()
-            
-            elapsed_time = time.time() - start_time
-            speed_mbps = (file_size / (1024*1024)) / elapsed_time if elapsed_time > 0 else 0
-            print(f"  ✅ Yükleme tamamlandı! ({elapsed_time:.1f}s, {speed_mbps:.2f} MB/s)", flush=True)
-            
-            if upload_response.status_code == 200:
-                return {
-                    "success": True,
-                    "video_id": video_id,
-                    "title": title
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Upload başarısız: {upload_response.text}"
-                }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    def list_videos(self, collection_id: str = None, page: int = 1, items_per_page: int = 100) -> List[Dict]:
-        """Videoları listele (collection'a göre filtrelenebilir)"""
-        try:
-            params = {
-                "page": page,
-                "itemsPerPage": items_per_page
-            }
-            if collection_id:
-                params["collection"] = collection_id
-            
-            response = requests.get(
-                f"{self.base_url}/videos",
-                headers={"AccessKey": self.api_key},
-                params=params
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("items", [])
-            return []
-        except Exception as e:
-            print(f"⚠️ Video listesi alınamadı: {e}")
-            return []
-    
-    def video_exists(self, title: str, collection_id: str = None) -> bool:
-        """Videonun Bunny'de olup olmadığını kontrol et"""
-        try:
-            videos = self.list_videos(collection_id=collection_id, items_per_page=1000)
+            videos = self.list_videos(collection_id=collection_id)
             for video in videos:
                 if video.get("title") == title:
                     return True
@@ -730,485 +159,693 @@ class BunnyUploader:
         except Exception as e:
             print(f"⚠️ Video kontrolü başarısız: {e}")
             return False
-    
-    def update_video(self, video_id: str, collection_id: str = None, title: str = None) -> bool:
-        """Video bilgilerini güncelle (collection'a taşı)"""
-        try:
-            payload = {}
-            if collection_id:
-                payload["collectionId"] = collection_id
-            if title:
-                payload["title"] = title
-            
-            response = requests.post(
-                f"{self.base_url}/videos/{video_id}",
-                headers=self.headers,
-                json=payload
-            )
-            
-            if response.status_code == 200:
-                print(f"  ✅ Video güncellendi: {video_id}")
-                if collection_id:
-                    print(f"  ✅ Collection'a taşındı: {collection_id}")
-                return True
-            else:
-                print(f"  ⚠️ Video güncellenemedi: {response.status_code}")
-                return False
-        except Exception as e:
-            print(f"  ❌ Video güncelleme hatası: {e}")
-            return False
-    
-    def get_video_status(self, video_id: str) -> Dict:
-        """Video durumunu kontrol et"""
-        try:
-            response = requests.get(
-                f"{self.base_url}/videos/{video_id}",
-                headers={"AccessKey": self.api_key}
-            )
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except Exception as e:
-            print(f"⚠️ Video durumu alınamadı: {e}")
-            return None
-    
-    def wait_for_video(self, title: str, collection_id: str = None, timeout: int = 60) -> Optional[str]:
-        """Video oluşana kadar bekle (fetch işlemi için)"""
-        print(f"  ⏳ Video oluşması bekleniyor (max {timeout} saniye)...")
-        import time
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            videos = self.list_videos(collection_id=collection_id)
-            
-            # Title'a göre video ara
-            for video in videos:
-                if video.get("title") == title:
-                    video_id = video.get("guid")
-                    print(f"  ✅ Video bulundu: {video_id}")
-                    return video_id
-            
-            # 5 saniye bekle
-            time.sleep(5)
-            print(f"  ⏳ Bekleniyor... ({int(time.time() - start_time)}s)")
-        
-        print(f"  ⚠️ Timeout: Video {timeout} saniye içinde bulunamadı")
-        return None
 
 
 class TurkAnimeToBunny:
-    """TurkAnime'den Bunny.net'e aktarma ana sınıfı"""
-    
-    def __init__(self):
-        self.bunny = BunnyUploader(BUNNY_API_KEY, BUNNY_LIBRARY_ID)
-        self.stats = {
-            "total": 0,
-            "success": 0,
-            "failed": 0,
-            "skipped": 0
+    def __init__(self, bunny_library_id, bunny_api_key, download_dir="./temp", upscale_to_1080p=False):
+        """
+        TürkAnime'den Bunny.net'e video aktarımı yapan ana sınıf
+        
+        Args:
+            bunny_library_id: Bunny.net Stream Library ID
+            bunny_api_key: Bunny.net API Key
+            download_dir: Videoların geçici olarak indirileceği klasör (varsayılan: ./temp)
+            upscale_to_1080p: Videoları 1080p'ye upscale yap (varsayılan: False)
+        """
+        self.bunny = BunnyNetUploader(bunny_library_id, bunny_api_key)
+        self.download_dir = Path(download_dir).resolve()
+        self.download_dir.mkdir(exist_ok=True, parents=True)
+        self.upscale_enabled = upscale_to_1080p
+        print(f"📁 Geçici klasör: {self.download_dir}")
+        if self.upscale_enabled:
+            print(f"🎬 1080p Upscale: Aktif")
+        
+    def download_video(self, video_url, output_path):
+        """
+        aria2c ile videoyu indir (çok daha hızlı - paralel indirme)
+        
+        Args:
+            video_url: Video URL'si
+            output_path: İndirilecek dosya yolu
+        """
+        # yt-dlp ile aria2c kullan (external downloader)
+        ydl_opts = {
+            'outtmpl': str(output_path),
+            'format': 'best',
+            'quiet': False,
+            'no_warnings': False,
+            'nocheckcertificate': True,
+            # aria2c external downloader (çok daha hızlı)
+            'external_downloader': 'aria2c',
+            'external_downloader_args': [
+                '--max-connection-per-server=16',  # Paralel bağlantı
+                '--split=16',                       # 16 parçaya böl
+                '--min-split-size=1M',              # Minimum parça boyutu
+                '--max-concurrent-downloads=16',    # Eşzamanlı indirme
+                '--continue=true',                  # Devam et
+                '--max-download-limit=0',           # Hız sınırı yok
+                '--file-allocation=none',           # Hızlı başlat
+            ]
         }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
     
-    def list_all_anime(self):
-        """Tüm animeleri listele"""
-        print("📋 Anime listesi getiriliyor...")
-        anime_list = ta.Anime.get_anime_listesi()
+    def upscale_to_1080p(self, input_path, output_path):
+        """
+        FFmpeg ile videoyu 1080p'ye upscale yap (GPU hızlandırmalı)
         
-        print(f"\n✅ Toplam {len(anime_list)} anime bulundu:\n")
-        for i, (slug, title) in enumerate(anime_list[:50], 1):  # İlk 50'yi göster
-            print(f"{i:3d}. {title:50s} ({slug})")
+        Args:
+            input_path: Giriş video dosyası
+            output_path: Çıkış video dosyası (1080p)
         
-        if len(anime_list) > 50:
-            print(f"\n... ve {len(anime_list) - 50} anime daha")
-        
-        print(f"\nKullanım: python {sys.argv[0]} --anime SLUG --start 1 --end 10")
-    
-    def transfer_anime(self, anime_slug: str, start_ep: int = 1, end_ep: int = None, 
-                      season: int = 1, fansub: str = None, quality_priority: bool = True):
-        """Anime bölümlerini Bunny.net'e aktar (sezonlu sistem)"""
-        
-        print(f"\n🎬 Anime: {anime_slug}")
-        print(f"📺 Sezon: {season}")
-        print("=" * 60)
-        
-        # Anime objesini oluştur
+        Returns:
+            bool: Başarılı ise True
+        """
         try:
-            anime = ta.Anime(anime_slug, parse_fansubs=True)
-            print(f"✅ Anime bulundu: {anime.title}")
-            print(f"📊 Toplam bölüm: {len(anime.bolumler)}")
+            print(f"🎬 1080p'ye upscale yapılıyor (GPU hızlandırmalı)...")
+            
+            # GPU ile hızlı ve kaliteli upscale
+            # NVIDIA NVENC encoder kullanarak 10-20x daha hızlı
+            cmd = [
+                'ffmpeg',
+                '-hwaccel', 'cuda',                      # CUDA GPU hızlandırma
+                '-hwaccel_output_format', 'cuda',        # GPU'da tut
+                '-i', str(input_path),
+                '-vf', 'scale_cuda=1920:1080:interp_algo=lanczos',  # GPU'da Lanczos upscale
+                '-c:v', 'h264_nvenc',                    # NVIDIA NVENC encoder (GPU)
+                '-preset', 'p7',                         # p7 = en yüksek kalite (p1-p7)
+                '-tune', 'hq',                           # High Quality tuning
+                '-rc', 'vbr',                            # Variable Bitrate
+                '-cq', '19',                             # Kalite (19 = çok yüksek, 0-51)
+                '-b:v', '8M',                            # Max bitrate 8 Mbps
+                '-maxrate', '10M',                       # Peak bitrate
+                '-bufsize', '16M',                       # Buffer size
+                '-c:a', 'copy',                          # Ses kopyala (re-encode yok)
+                '-y',                                    # Üzerine yaz
+                str(output_path)
+            ]
+            
+            # FFmpeg'i çalıştır;
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print(f"✅ Upscale tamamlandı: {output_path.name}")
+                # Dosya boyutlarını göster
+                input_size = input_path.stat().st_size / (1024*1024)
+                output_size = output_path.stat().st_size / (1024*1024)
+                print(f"   Orijinal: {input_size:.1f} MB → 1080p: {output_size:.1f} MB")
+                return True
+            else:
+                # GPU başarısız olursa CPU fallback
+                print(f"⚠️ GPU upscale başarısız, CPU ile deneniyor...")
+                return self._upscale_cpu_fallback(input_path, output_path)
+                
         except Exception as e:
-            print(f"❌ Anime bulunamadı: {e}")
-            return
-        
-        # Collection adını sezon ile birlikte oluştur
-        collection_name = f"{anime.title} Season {season}"
-        print(f"\n📁 Collection kontrol ediliyor: {collection_name}")
-        collection_id = self.bunny.get_or_create_collection(collection_name)
-        if not collection_id:
-            print("❌ Koleksiyon oluşturulamadı!")
-            return
-        print(f"✅ Koleksiyon ID: {collection_id}")
-        
-        # Bölüm aralığını belirle
-        if end_ep is None:
-            end_ep = len(anime.bolumler)
-        
-        # Python slice: [start:end] - end dahil değil!
-        # start=1, end=1 için: [0:1] = 1 bölüm
-        # start=1, end=5 için: [0:5] = 5 bölüm
-        bolumler = anime.bolumler[start_ep - 1:end_ep]
-        self.stats["total"] = len(bolumler)
-        
-        print(f"\n🔄 {start_ep}-{end_ep} arası {len(bolumler)} bölüm aktarılacak...")
-        print(f"📋 Bölümler: {[b.title for b in bolumler[:3]]}{'...' if len(bolumler) > 3 else ''}\n")
-        
-        # Başarılı video ID'lerini topla (collection'a taşımak için)
-        uploaded_video_ids = []
-        
-        # Her bölümü işle
-        for i, bolum in enumerate(bolumler, start=start_ep):
-            print(f"\n[{i}/{end_ep}] {bolum.title}")
-            print("-" * 60)
-            
-            try:
-                # Bunny'de zaten var mı kontrol et
-                video_title = f"{anime.title} - {bolum.title}"
-                print("🔍 Bunny'de video kontrolü yapılıyor...")
-                if self.bunny.video_exists(title=video_title, collection_id=collection_id):
-                    print(f"✅ Video zaten Bunny'de mevcut, atlanıyor...")
-                    self.stats["skipped"] += 1
-                    continue
-                
-                # En iyi videoyu bul
-                print("🔍 En iyi video aranıyor...")
-                
-                def progress_callback(hook):
-                    status = hook.get("status", "")
-                    player = hook.get("player", "")
-                    current = hook.get("current", 0)
-                    total = hook.get("total", 0)
-                    print(f"  [{current}/{total}] {player}: {status}")
-                
-                best_video = bolum.best_video(
-                    by_res=quality_priority,
-                    by_fansub=fansub,
-                    callback=progress_callback
-                )
-                
-                if not best_video:
-                    print("⚠️ Çalışan video bulunamadı, atlanıyor...")
-                    self.stats["skipped"] += 1
-                    continue
-                
-                print(f"✅ Video bulundu: {best_video.player} ({best_video.fansub})")
-                
-                # Video URL'sini al
-                video_url = best_video.url
-                if not video_url:
-                    print("⚠️ Video URL'si alınamadı, atlanıyor...")
-                    self.stats["skipped"] += 1
-                    continue
-                
-                print(f"🔗 URL: {video_url[:80]}...")
-                
-                # Bunny.net'e aktar
-                print(f"📤 Bunny.net'e aktarılıyor (Sezon {season})...")
-                result = self.bunny.upload_from_url(
-                    video_url=video_url,
-                    title=f"{anime.title} - {bolum.title}",
-                    collection_id=collection_id
-                )
-                
-                # Eğer URL fetch başarısız olursa, indir ve yükle
-                if not result["success"] and "Invalid file" in result.get("error", ""):
-                    print("  ⚠️ Direkt URL aktarımı başarısız, dosya indiriliyor...")
-                    result = self._download_and_upload(
-                        video_url=video_url,
-                        title=f"{anime.title} - {bolum.title}",
-                        collection_id=collection_id
-                    )
-                
-                if result["success"]:
-                    video_id = result.get("video_id")
-                    print(f"✅ Başarıyla aktarıldı! Video ID: {video_id}")
-                    self.stats["success"] += 1
-                    
-                    # Video ID'yi topla (collection'a taşımak için)
-                    if video_id:
-                        uploaded_video_ids.append(video_id)
-                        self._log_success(anime_slug, i, bolum.title, video_id)
-                        print(f"📝 Log kaydedildi: {anime_slug}|{i}|{video_id}")
-                    else:
-                        print("⚠️ Video ID bulunamadı, log kaydedilemedi")
-                else:
-                    print(f"❌ Aktarım başarısız: {result['error']}")
-                    self.stats["failed"] += 1
-                    self._log_error(anime_slug, i, bolum.title, result["error"])
-                
-                # Rate limiting için bekle
-                time.sleep(2)
-                
-            except KeyboardInterrupt:
-                print("\n\n⚠️ Kullanıcı tarafından iptal edildi!")
-                break
-            except Exception as e:
-                import traceback
-                print(f"❌ Hata: {e}")
-                print(f"📋 Detaylı hata:")
-                traceback.print_exc()
-                self.stats["failed"] += 1
-                self._log_error(anime_slug, i, bolum.title, str(e))
-                print(f"\n⏭️ Sonraki bölüme geçiliyor...\n")
-                continue
-        
-        # Tüm videolar yüklendi, şimdi collection'a toplu taşıma
-        if uploaded_video_ids and collection_id:
-            print(f"\n{'='*60}")
-            print(f"📦 COLLECTION'A TOPLU TAŞIMA")
-            print(f"{'='*60}")
-            print(f"  Toplam {len(uploaded_video_ids)} video collection'a taşınacak...")
-            print(f"  Collection ID: {collection_id}\n")
-            
-            moved_count = 0
-            for idx, video_id in enumerate(uploaded_video_ids, 1):
-                print(f"  [{idx}/{len(uploaded_video_ids)}] Video taşınıyor: {video_id}")
-                if self.bunny.update_video(video_id=video_id, collection_id=collection_id):
-                    moved_count += 1
-                    print(f"    ✅ Başarılı")
-                else:
-                    print(f"    ❌ Başarısız")
-                time.sleep(0.5)  # API rate limit
-            
-            print(f"\n  ✅ {moved_count}/{len(uploaded_video_ids)} video başarıyla collection'a taşındı!")
-            print(f"{'='*60}\n")
-        
-        # Özet
-        self._print_summary()
+            print(f"❌ Upscale hatası: {str(e)}")
+            return False
     
-    def _download_and_upload(self, video_url: str, title: str, collection_id: str = None) -> Dict:
-        """Videoyu indir ve Bunny.net'e yükle (fallback method)"""
-        temp_file = None
+    def _upscale_cpu_fallback(self, input_path, output_path):
+        """
+        GPU başarısız olursa CPU ile upscale yap (fallback)
+        
+        Args:
+            input_path: Giriş video dosyası
+            output_path: Çıkış video dosyası (1080p)
+        
+        Returns:
+            bool: Başarılı ise True
+        """
         try:
-            # Geçici dosya oluştur
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-            temp_path = temp_file.name
-            temp_file.close()
+            print(f"🖥️ CPU ile upscale yapılıyor...")
             
-            print(f"  📥 Video indiriliyor: {temp_path}")
+            # CPU ile Lanczos upscale (daha yavaş ama kaliteli)
+            cmd = [
+                'ffmpeg',
+                '-i', str(input_path),
+                '-vf', 'scale=1920:1080:flags=lanczos',  # Lanczos upscaling
+                '-c:v', 'libx264',                       # H.264 codec
+                '-preset', 'medium',                     # Hız/kalite dengesi
+                '-crf', '18',                            # Kalite (18 = çok yüksek)
+                '-c:a', 'copy',                          # Ses kopyala
+                '-y',                                    # Üzerine yaz
+                str(output_path)
+            ]
             
-            # yt-dlp ile indir
-            ydl_opts = {
-                'outtmpl': temp_path,
-                'format': 'best',
-                'quiet': False,
-                'no_warnings': False,
-            }
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
             
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
+            if result.returncode == 0:
+                print(f"✅ CPU upscale tamamlandı: {output_path.name}")
+                input_size = input_path.stat().st_size / (1024*1024)
+                output_size = output_path.stat().st_size / (1024*1024)
+                print(f"   Orijinal: {input_size:.1f} MB → 1080p: {output_size:.1f} MB")
+                return True
+            else:
+                print(f"❌ CPU upscale başarısız: {result.stderr[:200]}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ CPU upscale hatası: {str(e)}")
+            return False
+    
+    def schedule_file_deletion(self, file_path, delay=900):
+        """
+        Dosyayı belirli süre sonra silen zamanlayıcı
+        
+        Args:
+            file_path: Silinecek dosya yolu
+            delay: Bekleme süresi (saniye, varsayılan 900 = 15 dakika)
+        """
+        def delete_file():
+            time.sleep(delay)
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+                    print(f"🗑️  Geçici dosya silindi: {file_path.name}")
+            except Exception as e:
+                print(f"⚠️  Dosya silinemedi {file_path.name}: {str(e)}")
+        
+        thread = threading.Thread(target=delete_file, daemon=True)
+        thread.start()
+    
+    def process_episode(self, bolum, anime_title, collection_id=None, 
+                       fansub_preference=None, quality_preference=True):
+        """
+        Tek bir bölümü işle ve Bunny.net'e yükle
+        
+        Args:
+            bolum: TürkAnime Bolum objesi
+            anime_title: Anime başlığı
+            collection_id: Bunny.net collection ID (opsiyonel)
+            fansub_preference: Tercih edilen fansub
+            quality_preference: Kalite önceliği (True: yüksek kalite)
+        """
+        try:
+            # En iyi videoyu seç
+            video = bolum.best_video(
+                by_res=quality_preference,
+                by_fansub=fansub_preference
+            )
             
-            # Dosya boyutunu kontrol
-            file_size = os.path.getsize(temp_path)
-            print(f"  ✅ İndirildi: {file_size / (1024*1024):.2f} MB")
+            if not video or not video.is_supported:
+                print(f"❌ {bolum.slug} için uygun video bulunamadı")
+                return False
+            
+            print(f"\n📥 İndiriliyor: {anime_title} - {bolum.slug}")
+            print(f"   Player: {video.player}")
+            print(f"   Çözünürlük: {video.resolution}p")
+            print(f"   Fansub: {video.fansub or 'Belirtilmemiş'}")
+            
+            # Geçici dosya yolu
+            temp_file = self.download_dir / f"{bolum.slug}.mp4"
+            
+            # Videoyu indir
+            self.download_video(video.url, temp_file)
+            
+            if not temp_file.exists():
+                print(f"❌ Video indirilemedi: {bolum.slug}")
+                return False
+            
+            # 1080p upscale (opsiyonel)
+            upload_file = temp_file
+            if self.upscale_enabled:
+                upscaled_file = self.download_dir / f"{bolum.slug}_1080p.mp4"
+                if self.upscale_to_1080p(temp_file, upscaled_file):
+                    upload_file = upscaled_file
+                    # Orijinal dosyayı sil
+                    temp_file.unlink()
+                    print(f"🗑️  Orijinal dosya silindi: {temp_file.name}")
+                else:
+                    print(f"⚠️  Upscale başarısız, orijinal video yüklenecek")
             
             # Bunny.net'e yükle
-            print("  📤 Bunny.net'e yükleniyor...")
-            if collection_id:
-                print(f"  📁 Koleksiyon: {collection_id}")
-            result = self.bunny.upload_file_direct(
-                file_path=temp_path,
-                title=title,
-                collection_id=collection_id
-            )
+            print(f"☁️  Bunny.net'e yükleniyor...")
+            video_title = f"{anime_title} - {bolum.title}"
+            video_id = self.bunny.create_video(video_title, collection_id)
+            self.bunny.upload_video(video_id, upload_file)
             
-            if result.get("success"):
-                print(f"  ✅ Upload başarılı! Video ID: {result.get('video_id')}")
+            # 15 dakika sonra silinmek üzere zamanla
+            print(f"⏰ Dosya 15 dakika sonra silinecek: {upload_file.name}")
+            self.schedule_file_deletion(upload_file, delay=900)
             
-            return result
+            print(f"✅ Başarıyla yüklendi: {video_title}")
+            return True
             
         except Exception as e:
-            return {
-                "success": False,
-                "error": f"İndirme/yükleme hatası: {str(e)}"
-            }
-        finally:
-            # Geçici dosyayı sil
-            if temp_file and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                    print("  🗑️ Geçici dosya silindi")
-                except:
-                    pass
+            print(f"❌ Hata: {bolum.slug} işlenirken: {str(e)}")
+            return False
     
-    def _log_success(self, anime: str, episode: int, title: str, video_id: str):
-        """Başarılı transferleri logla"""
-        log_file = Path("bunny_transfer_success.log")
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"{anime}|{episode}|{title}|{video_id}\n")
-    
-    def _log_error(self, anime: str, episode: int, title: str, error: str):
-        """Hataları logla"""
-        log_file = Path("bunny_transfer_errors.log")
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"{anime}|{episode}|{title}|{error}\n")
-    
-    def _print_summary(self):
-        """Transfer özetini yazdır"""
-        print("\n" + "=" * 60)
-        print("📊 TRANSFER ÖZETİ")
-        print("=" * 60)
-        print(f"Toplam:    {self.stats['total']}")
-        print(f"✅ Başarılı: {self.stats['success']}")
-        print(f"❌ Başarısız: {self.stats['failed']}")
-        print(f"⏭️  Atlanan:  {self.stats['skipped']}")
-        print("=" * 60)
+    def process_anime(self, anime_slug, start_episode=0, end_episode=None, 
+                     season=1, fansub_preference=None, create_collection_folder=True):
+        """
+        Bir anime serisinin bölümlerini toplu olarak işle
         
-        if self.stats["success"] > 0:
-            print(f"\n✅ Başarılı transferler: bunny_transfer_success.log")
-        if self.stats["failed"] > 0:
-            print(f"❌ Hatalar: bunny_transfer_errors.log")
-    
-    def transfer_single_episode(self, anime_slug: str, episode_num: int, 
-                               collection_id: str = None, fansub: str = None, 
-                               quality_priority: bool = True) -> Dict:
-        """Tek bir bölümü Bunny.net'e aktar (API için)"""
+        Args:
+            anime_slug: Anime slug'ı (örn: "naruto")
+            start_episode: Başlangıç bölümü (0'dan başlar)
+            end_episode: Bitiş bölümü (None ise tüm bölümler)
+            season: Sezon numarası (varsayılan: 1)
+            fansub_preference: Tercih edilen fansub
+            create_collection_folder: Bunny.net'te anime için klasör oluştur
+        """
+        print(f"🔍 Anime yükleniyor: {anime_slug}")
+        
         try:
-            # Anime objesini oluştur
-            anime = ta.Anime(anime_slug, parse_fansubs=True)
+            anime = ta.Anime(anime_slug)
+        except AssertionError as e:
+            print(f"\n❌ TürkAnime API hatası: Anime bulunamadı veya site erişilemiyor")
+            print(f"\n💡 Olası sebepler:")
+            print(f"   1. TürkAnime sitesi erişilemiyor (Cloudflare, DDoS koruması)")
+            print(f"   2. Anime slug'ı yanlış: '{anime_slug}'")
+            print(f"   3. API kütüphanesi güncel değil")
+            print(f"\n🔧 Çözümler:")
+            print(f"   1. TürkAnime sitesini kontrol edin: https://www.turkanime.co")
+            print(f"   2. Doğru slug'ı bulun:")
+            print(f"      python3 -c \"import turkanime_api as ta; anime_list = ta.Anime.get_anime_listesi(); bleach = [item for item in anime_list if 'bleach' in item[0].lower()]; [print(f'  {{slug}}: {{title}}') for slug, title in bleach[:5]]\"")
+            print(f"   3. API kütüphanesini güncelleyin:")
+            print(f"      pip install --upgrade turkanime-cli")
+            print(f"\n📋 Hata detayı: {str(e)}")
+            return
+        except Exception as e:
+            print(f"\n❌ Beklenmeyen hata: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return
+        
+        print(f"📺 {anime.title}")
+        print(f"📺 Sezon: {season}")
+        print(f"   Toplam Bölüm: {len(anime.bolumler)}")
+        
+        # Collection oluştur (sezon ile birlikte)
+        collection_id = None
+        if create_collection_folder:
+            try:
+                collection_name = f"{anime.title} Season {season}"
+                collection_id = self.bunny.get_or_create_collection(collection_name)
+                print(f"✅ Collection ID: {collection_id}")
+            except Exception as e:
+                print(f"⚠️  Collection oluşturulamadı: {str(e)}")
+        
+        # Bölüm aralığını belirle
+        end = end_episode if end_episode else len(anime.bolumler)
+        bolumler = anime.bolumler[start_episode:end]
+        
+        # İstatistikler
+        success_count = 0
+        fail_count = 0
+        
+        # Her bölümü işle
+        for i, bolum in enumerate(bolumler, start=start_episode + 1):
+            print(f"\n[{i}/{end}] İşleniyor...")
             
-            if episode_num < 1 or episode_num > len(anime.bolumler):
-                return {
-                    "success": False,
-                    "error": f"Geçersiz bölüm numarası: {episode_num}"
-                }
+            # Video kontrolü - zaten varsa atla
+            video_title = f"{anime.title} - {bolum.title}"
+            print("🔍 Bunny'de video kontrolü yapılıyor...")
+            if self.bunny.video_exists(title=video_title, collection_id=collection_id):
+                print(f"✅ Video zaten Bunny'de mevcut, atlanıyor...")
+                success_count += 1  # Zaten var, başarılı sayılır
+                continue
             
-            bolum = anime.bolumler[episode_num - 1]
-            
-            # En iyi videoyu bul
-            best_video = bolum.best_video(
-                by_res=quality_priority,
-                by_fansub=fansub
-            )
-            
-            if not best_video:
-                return {
-                    "success": False,
-                    "error": "Çalışan video bulunamadı"
-                }
-            
-            video_url = best_video.url
-            if not video_url:
-                return {
-                    "success": False,
-                    "error": "Video URL'si alınamadı"
-                }
-            
-            # Bunny.net'e aktar
-            title = f"{anime.title} - {bolum.title}"
-            result = self.bunny.upload_from_url(
-                video_url=video_url,
-                title=title,
-                collection_id=collection_id
-            )
-            
-            # Fallback: URL fetch başarısız olursa indir ve yükle
-            if not result["success"] and "Invalid file" in result.get("error", ""):
-                result = self._download_and_upload(
-                    video_url=video_url,
-                    title=title,
-                    collection_id=collection_id
-                )
-            
-            if result["success"]:
-                video_id = result.get("video_id")
-                self._log_success(anime_slug, episode_num, bolum.title, video_id)
-                return {
-                    "success": True,
-                    "video_id": video_id,
-                    "title": title,
-                    "episode": episode_num
-                }
+            if self.process_episode(bolum, anime.title, collection_id, fansub_preference):
+                success_count += 1
             else:
-                self._log_error(anime_slug, episode_num, bolum.title, result["error"])
-                return {
-                    "success": False,
-                    "error": result["error"]
+                fail_count += 1
+        
+        # Özet
+        print(f"\n{'='*50}")
+        print(f"✅ Başarılı: {success_count}")
+        print(f"❌ Başarısız: {fail_count}")
+        print(f"{'='*50}")
+    
+    def export_anime_list_to_json(self, output_file="anime-list.json"):
+        """
+        Sadece anime listesini JSON dosyasına yaz (HIZLI - bölüm detayları yok)
+        
+        Args:
+            output_file: Çıktı dosya adı (varsayılan: anime-list.json)
+        """
+        print(f"\n🔍 TürkAnime'den anime listesi alınıyor...")
+        
+        try:
+            # Tüm anime listesini al (çok hızlı)
+            anime_list = ta.Anime.get_anime_listesi()
+            print(f"📺 Toplam {len(anime_list)} anime bulundu")
+            
+            # Basit liste formatı
+            all_animes_data = [
+                {
+                    "slug": slug,
+                    "title": title
+                }
+                for slug, title in anime_list
+            ]
+            
+            # JSON dosyasına yaz
+            output_path = Path(output_file)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(all_animes_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"\n{'='*50}")
+            print(f"✅ Toplam {len(all_animes_data)} anime JSON'a yazıldı")
+            print(f"📁 Dosya: {output_path.absolute()}")
+            print(f"{'='*50}")
+            
+        except Exception as e:
+            print(f"\n❌ Export hatası: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def _process_single_video(self, video, anime_title):
+        """
+        Tek bir videoyu işle (paralel çalışma için)
+        
+        Returns:
+            dict: Video verisi veya None
+        """
+        if not video.is_supported:
+            return None
+        
+        try:
+            print(f"    [{anime_title}] {video.player} - {video.resolution}p")
+            
+            video_data = {
+                "player": video.player,
+                "resolution": video.resolution,
+                "fansub": video.fansub,
+                "url": video.url
+            }
+            return video_data
+        except Exception as e:
+            print(f"    ❌ [{anime_title}] Video hatası: {video.player} - {str(e)}")
+            return None
+    
+    def _process_single_anime(self, anime_slug, anime_title, idx, total):
+        """
+        Tek bir animeyi işle (paralel çalışma için)
+        
+        Returns:
+            dict: Anime verisi veya None
+        """
+        print(f"\n[{idx}/{total}] İşleniyor: {anime_title}")
+        
+        try:
+            anime = ta.Anime(anime_slug)
+            
+            anime_data = {
+                "slug": anime_slug,
+                "title": anime_title,
+                "episodes": []
+            }
+            
+            # Her bölümü işle
+            for bolum_idx, bolum in enumerate(anime.bolumler, 1):
+                print(f"  [{anime_title}] Bölüm {bolum_idx}/{len(anime.bolumler)}: {bolum.title}")
+                
+                episode_data = {
+                    "episode_number": bolum_idx,
+                    "title": bolum.title,
+                    "slug": bolum.slug,
+                    "videos": []
                 }
                 
+                # TÜM videoları PARALEL olarak işle
+                with ThreadPoolExecutor(max_workers=10) as video_executor:
+                    video_futures = [
+                        video_executor.submit(self._process_single_video, video, anime_title)
+                        for video in bolum.videos
+                    ]
+                    
+                    # Sonuçları topla
+                    for future in as_completed(video_futures):
+                        video_data = future.result()
+                        if video_data:
+                            episode_data["videos"].append(video_data)
+                
+                # Eğer desteklenen video varsa bölümü ekle
+                if episode_data["videos"]:
+                    anime_data["episodes"].append(episode_data)
+            
+            # Eğer en az bir bölüm varsa anime'yi döndür
+            if anime_data["episodes"]:
+                print(f"  ✅ [{anime_title}] {len(anime_data['episodes'])} bölüm eklendi")
+                return anime_data
+            else:
+                print(f"  ⚠️ [{anime_title}] Desteklenen video bulunamadı")
+                return None
+                
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            print(f"  ❌ [{anime_title}] Hata: {str(e)}")
+            return None
+    
+    def export_all_animes_parallel(self, output_file="all-animes.json", max_animes=None, max_workers=5, delay_between_anime=2, resume=True):
+        """
+        Tüm animeleri PARALEL olarak işle ve JSON'a yaz (HİZLI)
+        
+        Args:
+            output_file: Çıktı dosya adı (varsayılan: all-animes.json)
+            max_animes: Maksimum anime sayısı (None ise hepsi)
+            max_workers: Eş zamanlı işçi sayısı (varsayılan: 5, ÖNERİLEN: 3-5)
+            delay_between_anime: Her anime arasında bekleme süresi (saniye, varsayılan: 2)
+            resume: Kaldığı yerden devam et (varsayılan: True)
+        """
+        print(f"\n🔍 TürkAnime'den anime listesi alınıyor...")
+        
+        try:
+            # Tüm anime listesini al
+            anime_list = ta.Anime.get_anime_listesi()
+            print(f"📺 Toplam {len(anime_list)} anime bulundu")
+            
+            if max_animes:
+                anime_list = anime_list[:max_animes]
+                print(f"📊 İlk {max_animes} anime işlenecek")
+            
+            # Güvenlik uyarısı
+            if max_workers > 5:
+                print(f"⚠️  UYARI: {max_workers} işçi çok fazla olabilir!")
+                print(f"⚠️  Siteye saldırı gibi gözükebilir ve IP'niz banlanabilir.")
+                print(f"⚠️  ÖNERİLEN: max_workers=3-5, delay_between_anime=2-5")
+            
+            # Kaldığı yerden devam et
+            output_path = Path(output_file)
+            all_animes_data = []
+            processed_slugs = set()
+            
+            if resume and output_path.exists():
+                print(f"📂 Mevcut dosya bulundu, kaldığı yerden devam ediliyor...")
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    all_animes_data = json.load(f)
+                    processed_slugs = {anime['slug'] for anime in all_animes_data}
+                print(f"✅ {len(processed_slugs)} anime zaten işlenmiş, atlanıyor...")
+            
+            # İşlenmemiş animeleri filtrele
+            remaining_anime = [(slug, title) for slug, title in anime_list if slug not in processed_slugs]
+            
+            if not remaining_anime:
+                print(f"✅ Tüm animeler zaten işlenmiş!")
+                return
+            
+            print(f"⚡ Paralel işleme başlatılıyor ({max_workers} işçi, {delay_between_anime}s gecikme)...")
+            print(f"🛡️  Rate limiting aktif (siteyi korumak için)")
+            print(f"📊 Kalan: {len(remaining_anime)} anime")
+            
+            # Paralel işleme - TÜM TASK'LARI AYNI ANDA BAŞLAT
+            completed_count = len(processed_slugs)
+            total_count = len(anime_list)
+            
+            print(f"🚀 {len(remaining_anime)} anime aynı anda işleniyor...")
+            
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # TÜM animeleri AYNI ANDA başlat (submit all at once)
+                futures = [
+                    executor.submit(self._process_single_anime, slug, title, completed_count + idx, total_count)
+                    for idx, (slug, title) in enumerate(remaining_anime, 1)
+                ]
+                
+                # Tüm sonuçları bekle ve topla
+                for idx, future in enumerate(as_completed(futures), 1):
+                    anime_data = future.result()
+                    if anime_data:
+                        all_animes_data.append(anime_data)
+                    
+                    completed_count += 1
+                    
+                    # İlerleme göster
+                    if completed_count % 10 == 0:
+                        print(f"📊 İlerleme: {completed_count}/{total_count} ({completed_count*100//total_count}%)")
+                        # Her 10 anime'de bir kaydet (crash durumunda veri kaybını önle)
+                        with open(output_path, 'w', encoding='utf-8') as f:
+                            json.dump(all_animes_data, f, ensure_ascii=False, indent=2)
+                        print(f"💾 Kaydedildi!")
+                    
+                    # Rate limiting: Her anime arasında bekle
+                    if delay_between_anime > 0:
+                        time.sleep(delay_between_anime)
+            
+            # Final kayıt
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(all_animes_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"\n{'='*50}")
+            print(f"✅ Toplam {len(all_animes_data)} anime JSON'a yazıldı")
+            print(f"📁 Dosya: {output_path.absolute()}")
+            print(f"⏱️  Tahmini süre: {len(remaining_anime) * delay_between_anime / 60 / max_workers:.1f} dakika")
+            print(f"{'='*50}")
+            
+        except Exception as e:
+            print(f"\n❌ Export hatası: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    def export_all_animes_to_json(self, output_file="all-animes.json", max_animes=None):
+        """
+        Tüm animeleri ve bölümlerini (desteklenen tüm player linkleriyle) JSON dosyasına yaz
+        
+        Args:
+            output_file: Çıktı dosya adı (varsayılan: all-animes.json)
+            max_animes: Maksimum anime sayısı (None ise hepsi)
+        """
+        print(f"\n🔍 TürkAnime'den anime listesi alınıyor...")
+        print(f"⚠️  DUR! Paralel versiyonu kullan: export_all_animes_parallel()")
+        print(f"⚠️  Bu metod çok yavaş (seri işleme)\n")
+        
+        try:
+            # Tüm anime listesini al
+            anime_list = ta.Anime.get_anime_listesi()
+            print(f"📺 Toplam {len(anime_list)} anime bulundu")
+            
+            if max_animes:
+                anime_list = anime_list[:max_animes]
+                print(f"📊 İlk {max_animes} anime işlenecek")
+            
+            all_animes_data = []
+            
+            for idx, (anime_slug, anime_title) in enumerate(anime_list, 1):
+                print(f"\n[{idx}/{len(anime_list)}] İşleniyor: {anime_title}")
+                
+                try:
+                    anime = ta.Anime(anime_slug)
+                    
+                    anime_data = {
+                        "slug": anime_slug,
+                        "title": anime_title,
+                        "episodes": []
+                    }
+                    
+                    # Her bölümü işle
+                    for bolum_idx, bolum in enumerate(anime.bolumler, 1):
+                        print(f"  📝 Bölüm {bolum_idx}/{len(anime.bolumler)}: {bolum.title}")
+                        
+                        episode_data = {
+                            "episode_number": bolum_idx,
+                            "title": bolum.title,
+                            "slug": bolum.slug,
+                            "videos": []
+                        }
+                        
+                        # Tüm desteklenen videoları al
+                        for video in bolum.videos:
+                            if video.is_supported:
+                                print(f"    🎬 {video.player} - {video.resolution}p")
+                                
+                                video_data = {
+                                    "player": video.player,
+                                    "resolution": video.resolution,
+                                    "fansub": video.fansub,
+                                    "url": video.url
+                                }
+                                
+                                episode_data["videos"].append(video_data)
+                        
+                        # Eğer desteklenen video varsa bölümü ekle
+                        if episode_data["videos"]:
+                            anime_data["episodes"].append(episode_data)
+                    
+                    # Eğer en az bir bölüm varsa anime'yi ekle
+                    if anime_data["episodes"]:
+                        all_animes_data.append(anime_data)
+                        print(f"  ✅ {len(anime_data['episodes'])} bölüm eklendi")
+                    else:
+                        print(f"  ⚠️ Desteklenen video bulunamadı")
+                    
+                except Exception as e:
+                    print(f"  ❌ Hata: {str(e)}")
+                    continue
+            
+            # JSON dosyasına yaz
+            output_path = Path(output_file)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(all_animes_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"\n{'='*50}")
+            print(f"✅ Toplam {len(all_animes_data)} anime JSON'a yazıldı")
+            print(f"📁 Dosya: {output_path.absolute()}")
+            print(f"{'='*50}")
+            
+        except Exception as e:
+            print(f"\n❌ Export hatası: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="TurkAnime'den Bunny.net'e video aktarma aracı",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Örnekler:
-  # Tüm animeleri listele
-  python turkanime_to_bunny.py --list
-  
-  # Naruto'nun 1-10 bölümlerini aktar
-  python turkanime_to_bunny.py --anime naruto --start 1 --end 10
-  
-  # One Piece'in tüm bölümlerini aktar
-  python turkanime_to_bunny.py --anime one-piece --all
-  
-  # Belirli fansub seç
-  python turkanime_to_bunny.py --anime naruto --start 1 --end 10 --fansub "TurkAnime"
-        """
+    # Bunny.net bilgileriniz
+    BUNNY_LIBRARY_ID = "515326"  # Buraya kendi library ID'nizi yazın
+    BUNNY_API_KEY = "53c7d7fb-32c8-491e-aeffa1a04974-1412-4208"  # Buraya kendi API key'inizi yazın
+    
+    # Uploader'ı başlat (upscale_to_1080p=True ile 1080p upscale aktif)
+    uploader = TurkAnimeToBunny(
+        BUNNY_LIBRARY_ID, 
+        BUNNY_API_KEY,
+        upscale_to_1080p=False  # True yapın 1080p upscale için
     )
     
-    parser.add_argument("--list", action="store_true", help="Tüm animeleri listele")
-    parser.add_argument("--anime", type=str, help="Anime slug (örn: naruto)")
-    parser.add_argument("--episode", type=str, help="Tek bölüm slug (örn: naruto-1-bolum)")
-    parser.add_argument("--start", type=int, default=1, help="Başlangıç bölümü (varsayılan: 1)")
-    parser.add_argument("--end", type=int, help="Bitiş bölümü (varsayılan: son bölüm)")
-    parser.add_argument("--all", action="store_true", help="Tüm bölümleri aktar")
-    parser.add_argument("--season", type=int, default=1, help="Sezon numarası (varsayılan: 1)")
-    parser.add_argument("--collection", type=str, help="Bunny collection ID")
-    parser.add_argument("--fansub", type=str, help="Tercih edilen fansub")
-    parser.add_argument("--no-quality", action="store_true", help="Kalite önceliğini kapat")
+    # Örnek kullanım 1: Tek bir bölüm yükle
+    # anime = ta.Anime("naruto")
+    # uploader.process_episode(anime.bolumler[0], anime.title)
     
-    args = parser.parse_args()
+    # Örnek kullanım 2: Tüm anime serisini yükle
+    # uploader.process_anime(
+    #     anime_slug="bleach",
+    #     start_episode=100,
+    #     end_episode=None,  # İlk 5 bölüm (test için)
+    #     season=1,  # Sezon numarası (varsayılan: 1)
+    #     fansub_preference="AniSekai",  # Opsiyonel
+    #     create_collection_folder=True
+    # )
     
-    transfer = TurkAnimeToBunny()
+    # Örnek kullanım 3a: Sadece anime listesini export et (ÇOK HIZLI - saniyeler içinde)
+    # uploader.export_anime_list_to_json(
+    #     output_file="anime-list.json"
+    # )
     
-    if args.list:
-        transfer.list_all_anime()
-    elif args.episode:
-        # Tek bölüm yükleme (API'den çağrılır)
-        # Episode slug'dan bölüm numarasını çıkar: naruto-1-bolum -> 1
-        parts = args.episode.rsplit('-', 2)
-        if len(parts) >= 2 and parts[-1] == 'bolum':
-            episode_num = int(parts[-2])
-            anime_slug = '-'.join(parts[:-2])
-            
-            result = transfer.transfer_single_episode(
-                anime_slug=anime_slug,
-                episode_num=episode_num,
-                collection_id=args.collection,
-                fansub=args.fansub,
-                quality_priority=not args.no_quality
-            )
-            
-            # JSON output (API için)
-            print(json.dumps(result, ensure_ascii=False))
-        else:
-            print(json.dumps({"success": False, "error": "Geçersiz episode slug"}))
-    elif args.anime:
-        transfer.transfer_anime(
-            anime_slug=args.anime,
-            start_ep=args.start,
-            end_ep=args.end if not args.all else None,
-            season=args.season,
-            fansub=args.fansub,
-            quality_priority=not args.no_quality
-        )
-    else:
-        parser.print_help()
+    # Örnek kullanım 3b: TÜM animeleri PARALEL olarak export et (GECE BOYUNCA ÇALIŞTIR)
+    uploader.export_all_animes_parallel(
+        output_file="all-animes.json",
+        max_animes=None,         # TÜM animeler (None = hepsi)
+        max_workers=3,           # 3 işçi (güvenli, ban riski düşük)
+        delay_between_anime=3,   # Her anime arasında 3 saniye (güvenli)
+        resume=True              # Kaldığı yerden devam et (crash olursa)
+    )
+    
+    # Tahmini süre hesabı:
+    # ~22,000 anime × 3 saniye / 3 işçi / 60 / 60 = ~6 saat
+    # Gece başlatın, sabah hazır olsun! 🌙
+    
+    # Örnek kullanım 3c: Tüm animeleri SERİ olarak export et (ÇOK YAVAŞ - kullanma!)
+    # uploader.export_all_animes_to_json(
+    #     output_file="all-animes.json",
+    #     max_animes=5
+    # )
 
 
 if __name__ == "__main__":
