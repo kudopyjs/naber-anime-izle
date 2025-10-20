@@ -21,7 +21,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route 
-              path="/watch/:animeSlug/:seasonNumber/:episodeNumber" 
+              path="/watch/:animeSlug/:episodeId" 
               element={
                 <ProtectedRoute>
                   <Watch />

@@ -1,0 +1,27 @@
+{
+  "name": "anime-video-proxy",
+  "version": "1.0.0",
+  "description": "Video proxy server for bypassing Cloudflare protection",
+  "main": "video-proxy.js",
+  "scripts": {
+    "start": "node video-proxy.js",
+    "dev": "nodemon video-proxy.js",
+    "hianime": "node hianime_proxy.js"
+  },
+  "keywords": [
+    "proxy",
+    "video",
+    "cloudflare",
+    "hls"
+  ],
+  "author": "kudo",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -5,10 +5,10 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import CategoryRow from '../components/CategoryRow'
 import ContinueWatching from '../components/ContinueWatching'
-import API_BASE_URL from '../config/api'
+import aniwatchApi from '../services/aniwatchApi'
 
 function Home() {
-  const [animes, setAnimes] = useState([])
+  const [homeData, setHomeData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [featuredAnime, setFeaturedAnime] = useState(null)
   const { scrollY } = useScroll()
@@ -23,35 +23,49 @@ function Home() {
 
   const loadData = async () => {
     try {
-      // Sadece anime listesini yükle (collections'a ihtiyaç yok)
-      const animesResponse = await fetch(`${API_BASE_URL}/anime/list`)
-      const animesData = await animesResponse.json()
+      // Aniwatch API'den ana sayfa verilerini al
+      const response = await aniwatchApi.getHomePage()
+      
+      console.log('🔍 API Response:', response)
+      console.log('📊 Data:', response.data)
 
-      if (animesData.success) {
-        setAnimes(animesData.animes)
-        // İlk anime'yi featured olarak ayarla
-        if (animesData.animes.length > 0) {
-          setFeaturedAnime(animesData.animes[0])
+      // API response'u {status: 200, data: {...}} formatında geliyor
+      if (response.status === 200 && response.data) {
+        setHomeData(response.data)
+        
+        console.log('🔥 Trending:', response.data.trendingAnimes?.length || 0)
+        console.log('⭐ Popular:', response.data.mostPopularAnimes?.length || 0)
+        console.log('🆕 Latest:', response.data.latestEpisodeAnimes?.length || 0)
+        console.log('✅ Data loaded successfully!')
+        
+        // Spotlight anime'lerden birini featured olarak ayarla
+        if (response.data.spotlightAnimes && response.data.spotlightAnimes.length > 0) {
+          const featured = response.data.spotlightAnimes[0]
+          setFeaturedAnime({
+            name: featured.name,
+            description: featured.description,
+            coverImage: featured.poster,
+            genres: response.data.genres?.slice(0, 3) || [],
+            id: featured.id
+          })
         }
+      } else {
+        console.error('❌ API returned unexpected response:', response)
       }
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('❌ Error loading data:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  // Anime'leri kategorilere ayır
-  const getAnimesByGenre = (genre) => {
-    return animes.filter(anime => 
-      anime.genres?.some(g => g.toLowerCase().includes(genre.toLowerCase()))
-    )
-  }
-
-  // En popüler animeler (en yeni eklenenler)
-  const popularAnimes = [...animes]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 10)
+  // API'den gelen kategorileri kullan
+  const trendingAnimes = homeData?.trendingAnimes || []
+  const popularAnimes = homeData?.mostPopularAnimes || []
+  const latestAnimes = homeData?.latestEpisodeAnimes || []
+  const topAiringAnimes = homeData?.topAiringAnimes || []
+  const mostFavoriteAnimes = homeData?.mostFavoriteAnimes || []
+  const latestCompletedAnimes = homeData?.latestCompletedAnimes || []
 
   if (loading) {
     return (
@@ -122,7 +136,7 @@ function Home() {
                 </div>
               )}
               <Link
-                to={`/anime/${featuredAnime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                to={`/anime/${featuredAnime.id}`}
                 className="inline-flex items-center gap-3 bg-primary hover:bg-primary/90 text-background-dark font-bold px-8 py-4 rounded-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-neon-cyan"
               >
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -140,24 +154,28 @@ function Home() {
         {/* Continue Watching - Only shows for logged in users */}
         <ContinueWatching />
         
+        {trendingAnimes.length > 0 && (
+          <CategoryRow title="🔥 Trend Animeler" animes={trendingAnimes} />
+        )}
+        
+        {topAiringAnimes.length > 0 && (
+          <CategoryRow title="📡 Yayında" animes={topAiringAnimes} />
+        )}
+        
         {popularAnimes.length > 0 && (
-          <CategoryRow title="🔥 Popüler Animeler" animes={popularAnimes} />
+          <CategoryRow title="⭐ En Popüler" animes={popularAnimes} />
         )}
         
-        {getAnimesByGenre('action').length > 0 && (
-          <CategoryRow title="⚔️ Aksiyon" animes={getAnimesByGenre('action')} />
+        {mostFavoriteAnimes.length > 0 && (
+          <CategoryRow title="❤️ En Sevilen" animes={mostFavoriteAnimes} />
         )}
         
-        {getAnimesByGenre('comedy').length > 0 && (
-          <CategoryRow title="😂 Komedi" animes={getAnimesByGenre('comedy')} />
+        {latestAnimes.length > 0 && (
+          <CategoryRow title="🆕 Son Bölümler" animes={latestAnimes} />
         )}
         
-        {getAnimesByGenre('drama').length > 0 && (
-          <CategoryRow title="🎭 Drama" animes={getAnimesByGenre('drama')} />
-        )}
-        
-        {animes.length > 0 && (
-          <CategoryRow title="📺 Tüm Animeler" animes={animes} />
+        {latestCompletedAnimes.length > 0 && (
+          <CategoryRow title="✅ Tamamlanan" animes={latestCompletedAnimes} />
         )}
       </div>
 

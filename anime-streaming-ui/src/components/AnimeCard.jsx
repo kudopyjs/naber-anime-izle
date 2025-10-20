@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 
-function AnimeCard({ id, title, rating, image, genre = 'action' }) {
+function AnimeCard({ id, title, rating, image, genre = 'action', episodes, type }) {
   const glowColor = genre === 'horror' ? 'glow-magenta' : 'glow-cyan'
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   
   return (
     <motion.div
@@ -11,7 +10,7 @@ function AnimeCard({ id, title, rating, image, genre = 'action' }) {
       transition={{ duration: 0.3 }}
       className="flex-shrink-0 w-60"
     >
-      <Link to={`/anime/${slug}`}>
+      <Link to={`/anime/${id}`}>
         <div className={`rounded-xl overflow-hidden bg-card-dark/50 shadow-lg hover:${glowColor} transition-all duration-300 border border-white/5`}>
           {/* Thumbnail */}
           <div className="relative aspect-[3/4] overflow-hidden">
@@ -44,17 +43,30 @@ function AnimeCard({ id, title, rating, image, genre = 'action' }) {
 
           {/* Info */}
           <div className="p-4">
-            <h3 className="text-white font-semibold text-base mb-2 truncate">
+            <h3 className="text-white font-semibold text-base mb-2 line-clamp-2 min-h-[3rem]">
               {title}
             </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              {episodes && (
+                <div className="flex items-center gap-1 text-white/60">
+                  <span>📺</span>
+                  <span>{episodes.sub || 0} Bölüm</span>
+                </div>
+              )}
+              {type && (
+                <span className="px-2 py-1 bg-primary/20 text-primary rounded">
+                  {type.toUpperCase()}
+                </span>
+              )}
+            </div>
+            {rating && rating !== 'N/A' && (
+              <div className="flex items-center gap-1 mt-2">
                 <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                 </svg>
                 <span className="text-primary text-sm font-medium">{rating}</span>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </Link>

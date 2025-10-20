@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Watch Anime - Naber Anime</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect"/>
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet"/>
+    
+    <!-- HLS.js for video streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#06f9f9",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#0f2323",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    
+    <style>
+        .glow-cyan {
+            box-shadow: 0 0 15px 5px rgba(6, 249, 249, 0.3), 0 0 5px 1px rgba(6, 249, 249, 0.2);
+        }
+        .glow-magenta {
+            box-shadow: 0 0 15px 5px rgba(249, 6, 249, 0.3), 0 0 5px 1px rgba(249, 6, 249, 0.2);
+        }
+        body {
+            min-height: max(884px, 100dvh);
+        }
+        
+        /* Video player custom styles */
+        #videoPlayer {
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+        
+        .video-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            padding: 1.5rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .video-container:hover .video-controls {
+            opacity: 1;
+        }
+        
+        .loading-spinner {
+            border: 3px solid rgba(6, 249, 249, 0.3);
+            border-top: 3px solid #06f9f9;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .quality-selector {
+            position: absolute;
+            bottom: 60px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            display: none;
+        }
+        
+        .quality-selector.active {
+            display: block;
+        }
+        
+        .quality-option {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .quality-option:hover {
+            background: rgba(6, 249, 249, 0.2);
+        }
+        
+        .quality-option.active {
+            background: rgba(6, 249, 249, 0.3);
+            color: #06f9f9;
+        }
+    </style>
+</head>
+
+<body class="bg-background-dark font-display text-white">
+    <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden p-4 lg:p-8">
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Video Player Section -->
+            <div class="flex-grow">
+                <div class="relative rounded-xl overflow-hidden aspect-video glow-cyan video-container">
+                    <!-- Video Element -->
+                    <video id="videoPlayer" controls crossorigin="anonymous"></video>
+                    
+                    <!-- Loading Indicator -->
+                    <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center bg-black/80">
+                        <div class="text-center">
+                            <div class="loading-spinner mx-auto mb-4"></div>
+                            <p class="text-white text-lg">Loading video...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Message -->
+                    <div id="errorMessage" class="absolute inset-0 flex items-center justify-center bg-black/80" style="display: none;">
+                        <div class="text-center max-w-md px-4">
+                            <span class="material-symbols-outlined text-6xl text-red-500 mb-4">error</span>
+                            <p class="text-white text-lg mb-2">Failed to load video</p>
+                            <p id="errorText" class="text-white/60 text-sm mb-4"></p>
+                            <button onclick="retryVideo()" class="px-6 py-2 bg-primary text-background-dark rounded-lg font-bold hover:bg-primary/80 transition-colors">
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quality Selector -->
+                    <div id="qualitySelector" class="quality-selector">
+                        <div class="text-white text-sm font-bold mb-2 px-2">Quality</div>
+                        <div id="qualityOptions"></div>
+                    </div>
+                </div>
+                
+                <!-- Video Info -->
+                <div class="mt-6">
+                    <h1 id="videoTitle" class="text-4xl lg:text-5xl font-bold tracking-tight text-white">Loading...</h1>
+                    <div class="flex items-center gap-4 mt-3 text-white/80">
+                        <div class="flex items-center gap-1" id="ratingStars">
+                            <!-- Stars will be added dynamically -->
+                        </div>
+                        <span id="rating">-</span>
+                        <span>|</span>
+                        <span id="duration">-</span>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex items-center gap-4 mt-4">
+                        <button class="flex items-center gap-2 rounded-lg h-11 px-5 bg-primary/20 text-primary hover:bg-primary hover:text-background-dark transition-colors duration-300">
+                            <span class="material-symbols-outlined">thumb_up</span>
+                            <span class="font-bold">Like</span>
+                        </button>
+                        <button class="flex items-center gap-2 rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 transition-colors duration-300">
+                            <span class="material-symbols-outlined">add</span>
+                            <span class="font-bold">Add to List</span>
+                        </button>
+                        <button class="flex items-center gap-2 rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 transition-colors duration-300">
+                            <span class="material-symbols-outlined">share</span>
+                            <span class="font-bold">Share</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Description -->
+                    <p id="description" class="text-white/80 text-base font-normal leading-relaxed mt-4 max-w-3xl">
+                        Loading description...
+                    </p>
+                    
+                    <!-- Language & Server Selector -->
+                    <div class="mt-6">
+                        <div class="flex flex-col gap-4">
+                            <!-- Language Selector -->
+                            <div>
+                                <label class="text-white/60 text-sm font-medium mb-2 block">Audio</label>
+                                <div class="flex gap-3" id="languageSelector">
+                                    <button onclick="changeCategory('sub')" class="category-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary text-background-dark text-sm font-bold tracking-wider" data-category="sub">
+                                        <span class="truncate">SUB</span>
+                                    </button>
+                                    <button onclick="changeCategory('dub')" class="category-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 text-sm font-bold tracking-wider transition-colors duration-300" data-category="dub">
+                                        <span class="truncate">DUB</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Server Selector -->
+                            <div>
+                                <label class="text-white/60 text-sm font-medium mb-2 block">Server</label>
+                                <div class="flex gap-3" id="serverSelector">
+                                    <button onclick="changeServer('hd-1')" class="server-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary text-background-dark text-sm font-bold tracking-wider" data-server="hd-1">
+                                        <span class="truncate">HD-1</span>
+                                    </button>
+                                    <button onclick="changeServer('hd-2')" class="server-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 text-sm font-bold tracking-wider transition-colors duration-300" data-server="hd-2">
+                                        <span class="truncate">HD-2</span>
+                                    </button>
+                                    <button onclick="changeServer('megacloud')" class="server-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 text-sm font-bold tracking-wider transition-colors duration-300" data-server="megacloud">
+                                        <span class="truncate">Megacloud</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="w-full lg:w-80 xl:w-96 flex-shrink-0">
+                <!-- Episodes List -->
+                <div class="bg-white/5 rounded-xl p-4">
+                    <h2 class="text-lg font-bold text-white mb-4">Episodes</h2>
+                    <div id="episodesList" class="space-y-2 max-h-96 overflow-y-auto">
+                        <p class="text-white/60 text-sm">Loading episodes...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            ANIWATCH_API: 'http://localhost:4000/api/v2/hianime',
+            PROXY_SERVER: 'http://localhost:5000'
+        };
+        
+        // Global state
+        let currentAnimeId = null;
+        let currentEpisodeId = null;
+        let currentCategory = 'sub';
+        let currentServer = 'hd-1'; // Default server as per aniwatch-api docs
+        let hls = null;
+        let animeInfo = null;
+        let episodes = [];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get anime and episode from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            currentAnimeId = urlParams.get('anime') || 'one-piece-100';
+            // Don't construct episodeId yet - we'll get it from the episodes list
+            
+            // Load anime info and episodes
+            loadAnimeInfo();
+        });
+        
+        // Load anime information
+        async function loadAnimeInfo() {
+            try {
+                // Fetch anime info
+                const infoResponse = await fetch(`${CONFIG.ANIWATCH_API}/anime/${currentAnimeId}`);
+                const infoData = await infoResponse.json();
+                animeInfo = infoData.data;
+                
+                // Update UI with anime info
+                document.getElementById('videoTitle').textContent = animeInfo.anime.info.name || 'Unknown Anime';
+                document.getElementById('description').textContent = animeInfo.anime.info.description || 'No description available.';
+                
+                // Fetch episodes
+                const episodesResponse = await fetch(`${CONFIG.ANIWATCH_API}/anime/${currentAnimeId}/episodes`);
+                const episodesData = await episodesResponse.json();
+                episodes = episodesData.data.episodes || [];
+                
+                console.log('Episodes loaded:', episodes.length);
+                if (episodes.length > 0) {
+                    console.log('First episode:', episodes[0]);
+                    console.log('Last episode:', episodes[episodes.length - 1]);
+                }
+                
+                // Display episodes
+                displayEpisodes();
+                
+                // Find the correct episode from URL parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const requestedEpNumber = urlParams.get('ep');
+                
+                if (requestedEpNumber) {
+                    // Try to find episode by the ep parameter in episodeId
+                    const foundByEpId = episodes.find(ep => ep.episodeId.includes(`?ep=${requestedEpNumber}`));
+                    
+                    if (foundByEpId) {
+                        console.log('✅ Found episode by ep ID:', foundByEpId.episodeId);
+                        currentEpisodeId = foundByEpId.episodeId;
+                    } else {
+                        // Try to find by episode number
+                        const foundByNumber = episodes.find(ep => ep.number === parseInt(requestedEpNumber));
+                        if (foundByNumber) {
+                            console.log('✅ Found episode by number:', foundByNumber.number, '→', foundByNumber.episodeId);
+                            currentEpisodeId = foundByNumber.episodeId;
+                        } else {
+                            console.warn('❌ Episode not found. Requested:', requestedEpNumber);
+                            console.log('Available episodes:', episodes.length, 'episodes');
+                            // Load first episode as fallback
+                            if (episodes.length > 0) {
+                                currentEpisodeId = episodes[0].episodeId;
+                                console.log('Loading first episode instead:', currentEpisodeId);
+                            }
+                        }
+                    }
+                } else {
+                    // No episode specified, load first one
+                    if (episodes.length > 0) {
+                        currentEpisodeId = episodes[0].episodeId;
+                        console.log('No episode specified, loading first:', currentEpisodeId);
+                    }
+                }
+                
+                // Load video
+                if (currentEpisodeId) {
+                    loadVideo();
+                }
+                
+            } catch (error) {
+                console.error('Error loading anime info:', error);
+                showError('Failed to load anime information: ' + error.message);
+            }
+        }
+        
+        // Display episodes list
+        function displayEpisodes() {
+            const episodesList = document.getElementById('episodesList');
+            
+            if (episodes.length === 0) {
+                episodesList.innerHTML = '<p class="text-white/60 text-sm">No episodes available</p>';
+                return;
+            }
+            
+            episodesList.innerHTML = episodes.map(ep => `
+                <div onclick="selectEpisode('${ep.episodeId}')" 
+                     class="flex items-center gap-4 p-2 rounded-lg hover:bg-white/10 transition-colors duration-300 cursor-pointer ${ep.episodeId === currentEpisodeId ? 'bg-primary/10' : ''}">
+                    <div class="flex-grow">
+                        <p class="font-bold ${ep.episodeId === currentEpisodeId ? 'text-primary' : 'text-white'}">
+                            Episode ${ep.number}
+                        </p>
+                        <p class="text-sm text-white/60">${ep.title || 'Episode ' + ep.number}</p>
+                    </div>
+                    ${ep.episodeId === currentEpisodeId ? '<span class="material-symbols-outlined text-primary">play_circle</span>' : ''}
+                </div>
+            `).join('');
+        }
+        
+        // Select episode
+        function selectEpisode(episodeId) {
+            currentEpisodeId = episodeId;
+            
+            // Extract episode number from episodeId (format: "anime-id?ep=123")
+            const epMatch = episodeId.match(/\?ep=(\d+)/);
+            const episodeNumber = epMatch ? epMatch[1] : episodeId;
+            
+            // Update URL with just the episode number
+            const url = new URL(window.location);
+            url.searchParams.set('ep', episodeNumber);
+            window.history.pushState({}, '', url);
+            
+            // Update UI
+            displayEpisodes();
+            
+            // Load video
+            loadVideo();
+        }
+        
+        // Change category (sub/dub)
+        function changeCategory(category) {
+            currentCategory = category;
+            
+            // Update button styles
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                if (btn.dataset.category === category) {
+                    btn.className = 'category-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary text-background-dark text-sm font-bold tracking-wider';
+                } else {
+                    btn.className = 'category-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 text-sm font-bold tracking-wider transition-colors duration-300';
+                }
+            });
+            
+            // Reload video
+            loadVideo();
+        }
+        
+        // Change server
+        function changeServer(server) {
+            currentServer = server;
+            console.log('🔄 Switching to server:', server);
+            
+            // Update button styles
+            document.querySelectorAll('.server-btn').forEach(btn => {
+                if (btn.dataset.server === server) {
+                    btn.className = 'server-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-primary text-background-dark text-sm font-bold tracking-wider';
+                } else {
+                    btn.className = 'server-btn flex min-w-[90px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-11 px-5 bg-white/10 text-white hover:bg-white/20 text-sm font-bold tracking-wider transition-colors duration-300';
+                }
+            });
+            
+            // Reload video
+            loadVideo();
+        }
+        
+        // Load video
+        async function loadVideo() {
+            try {
+                showLoading();
+                
+                console.log('Loading video:', currentEpisodeId, currentCategory, currentServer);
+                
+                // Fetch video sources from aniwatch API
+                const sourcesResponse = await fetch(
+                    `${CONFIG.ANIWATCH_API}/episode/sources?animeEpisodeId=${encodeURIComponent(currentEpisodeId)}&server=${currentServer}&category=${currentCategory}`
+                );
+                
+                if (!sourcesResponse.ok) {
+                    throw new Error(`API returned ${sourcesResponse.status}`);
+                }
+                
+                const sourcesData = await sourcesResponse.json();
+                console.log('Sources data:', sourcesData);
+                
+                if (!sourcesData.data || !sourcesData.data.sources || sourcesData.data.sources.length === 0) {
+                    throw new Error('No video sources available');
+                }
+                
+                // Get the best quality source (usually the first one)
+                const source = sourcesData.data.sources[0];
+                let videoUrl = source.url;
+                
+                console.log('Video URL:', videoUrl);
+                
+                // Proxy the URL through our server
+                const proxiedUrl = `${CONFIG.PROXY_SERVER}/proxy?url=${encodeURIComponent(videoUrl)}`;
+                
+                console.log('Proxied URL:', proxiedUrl);
+                
+                // Initialize video player
+                const video = document.getElementById('videoPlayer');
+                
+                // Check if HLS is supported
+                if (Hls.isSupported()) {
+                    // Destroy previous instance if exists
+                    if (hls) {
+                        hls.destroy();
+                    }
+                    
+                    // Create new HLS instance
+                    hls = new Hls({
+                        debug: false,
+                        enableWorker: true,
+                        lowLatencyMode: true,
+                        backBufferLength: 90
+                    });
+                    
+                    hls.loadSource(proxiedUrl);
+                    hls.attachMedia(video);
+                    
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        console.log('Manifest parsed, playing video');
+                        video.play().catch(e => console.log('Autoplay prevented:', e));
+                        hideLoading();
+                    });
+                    
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        console.error('HLS error:', data);
+                        if (data.fatal) {
+                            switch (data.type) {
+                                case Hls.ErrorTypes.NETWORK_ERROR:
+                                    console.log('Network error, trying to recover...');
+                                    hls.startLoad();
+                                    break;
+                                case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.log('Media error, trying to recover...');
+                                    hls.recoverMediaError();
+                                    break;
+                                default:
+                                    showError('Fatal error loading video: ' + data.details);
+                                    break;
+                            }
+                        }
+                    });
+                    
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Native HLS support (Safari)
+                    video.src = proxiedUrl;
+                    video.addEventListener('loadedmetadata', () => {
+                        video.play().catch(e => console.log('Autoplay prevented:', e));
+                        hideLoading();
+                    });
+                } else {
+                    throw new Error('HLS is not supported in this browser');
+                }
+                
+            } catch (error) {
+                console.error('Error loading video:', error);
+                showError('Failed to load video: ' + error.message);
+            }
+        }
+        
+        // Show loading indicator
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'flex';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+        
+        // Hide loading indicator
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+        
+        // Show error message
+        function showError(message) {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'flex';
+            document.getElementById('errorText').textContent = message;
+        }
+        
+        // Retry video loading
+        function retryVideo() {
+            loadVideo();
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (hls) {
+                hls.destroy();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,25 +1,22 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import AddToListModal from '../components/AddToListModal'
-import API_BASE_URL from '../config/api'
-
-const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '515326'
+import aniwatchApi from '../services/aniwatchApi'
 
 function AnimeDetail() {
-  const { animeSlug } = useParams()
+  const { animeSlug } = useParams() // animeSlug is now animeId from hianime
   const navigate = useNavigate()
   const [anime, setAnime] = useState(null)
-  const [seasons, setSeasons] = useState([])
-  const [selectedSeason, setSelectedSeason] = useState(null)
   const [episodes, setEpisodes] = useState([])
   const [showAllEpisodes, setShowAllEpisodes] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [loadingEpisodes, setLoadingEpisodes] = useState(false)
   const [error, setError] = useState('')
   const [showAddToListModal, setShowAddToListModal] = useState(false)
+  const [recommendedAnimes, setRecommendedAnimes] = useState([])
+  const [relatedAnimes, setRelatedAnimes] = useState([])
 
   useEffect(() => {
     loadAnimeDetails()
@@ -30,42 +27,39 @@ function AnimeDetail() {
     setError('')
     
     try {
-      // Anime metadata'sını anime.json'dan al
-      const animeListResponse = await fetch(`${API_BASE_URL}/anime/list`)
-      const animeListData = await animeListResponse.json()
+      // Aniwatch API'den anime detaylarını al
+      const animeData = await aniwatchApi.getAnimeInfo(animeSlug)
       
-      if (animeListData.success) {
-        // Anime slug'a göre anime bul
-        const foundAnime = animeListData.animes.find(a => 
-          a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === animeSlug.toLowerCase()
-        )
+      if (animeData.status === 200 && animeData.data) {
+        const animeInfo = animeData.data.anime.info
+        const moreInfo = animeData.data.anime.moreInfo
         
-        if (!foundAnime) {
-          setError('Anime bulunamadı')
-          setLoading(false)
-          return
-        }
+        // Anime bilgilerini ayarla
+        setAnime({
+          id: animeInfo.id,
+          name: animeInfo.name,
+          coverImage: animeInfo.poster,
+          description: animeInfo.description,
+          status: moreInfo.status?.toLowerCase().includes('airing') ? 'ongoing' : 'completed',
+          year: moreInfo.aired?.split(' ').pop() || 'N/A',
+          genre: moreInfo.genres?.join(', ') || 'Belirtilmemiş',
+          genres: moreInfo.genres || [],
+          rating: animeInfo.stats.rating,
+          quality: animeInfo.stats.quality,
+          type: animeInfo.stats.type,
+          duration: animeInfo.stats.duration,
+          studios: moreInfo.studios,
+          totalEpisodes: animeInfo.stats.episodes.sub + animeInfo.stats.episodes.dub
+        })
         
-        setAnime(foundAnime)
+        // Önerilen ve ilgili animeleri ayarla
+        setRecommendedAnimes(animeData.data.recommendedAnimes || [])
+        setRelatedAnimes(animeData.data.relatedAnimes || [])
         
-        // Sezonları ayarla (yeni format: seasons array)
-        if (foundAnime.seasons && foundAnime.seasons.length > 0) {
-          setSeasons(foundAnime.seasons)
-          // İlk sezonu seç ve bölümlerini yükle
-          loadSeasonEpisodes(foundAnime, foundAnime.seasons[0])
-        } else {
-          // Eski format için backward compatibility
-          if (foundAnime.b2Folder || foundAnime.collectionId) {
-            const legacySeason = {
-              seasonNumber: 1,
-              b2Folder: foundAnime.b2Folder,
-              collectionId: foundAnime.collectionId,
-              totalEpisodes: foundAnime.totalEpisodes || 0
-            }
-            setSeasons([legacySeason])
-            loadSeasonEpisodes(foundAnime, legacySeason)
-          }
-        }
+        // Bölümleri yükle
+        loadEpisodes(animeSlug)
+      } else {
+        setError('Anime bulunamadı')
       }
     } catch (err) {
       console.error('Error loading anime:', err)
@@ -75,66 +69,27 @@ function AnimeDetail() {
     }
   }
 
-  const loadSeasonEpisodes = async (animeData, season) => {
-    setLoadingEpisodes(true)
-    setSelectedSeason(season)
-    
+  const loadEpisodes = async (animeId) => {
     try {
-      // B2'den bölümleri çek
-      if (season.b2Folder) {
-        const slug = animeData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-        const response = await fetch(`${API_BASE_URL}/b2/anime/${slug}/season/${season.seasonNumber}`)
-        const data = await response.json()
+      // Aniwatch API'den bölümleri al
+      const episodesData = await aniwatchApi.getAnimeEpisodes(animeId)
+      
+      if (episodesData.status === 200 && episodesData.data) {
+        const formattedEpisodes = episodesData.data.episodes.map(ep => ({
+          episode: ep.number,
+          episodeNumber: ep.number,
+          title: ep.title || `Episode ${ep.number}`,
+          episodeId: ep.episodeId,
+          isFiller: ep.isFiller
+        }))
         
-        if (data.success && data.episodes) {
-          // playlist.m3u8 kullan (master.m3u8 yerine)
-          const episodesWithPlaylist = data.episodes.map(ep => ({
-            ...ep,
-            url: ep.url.replace('master.m3u8', 'playlist.m3u8')
-          }))
-          setEpisodes(episodesWithPlaylist)
-        } else {
-          setEpisodes([])
-        }
-      } else if (season.collectionId) {
-        // Bunny Collection'dan videoları çek
-        const videosResponse = await fetch(`${API_BASE_URL}/bunny/collection/${season.collectionId}/videos`)
-        const videosData = await videosResponse.json()
-        
-        if (videosData.success && videosData.videos) {
-          // Bunny videolarını episode formatına çevir
-          const bunnyEpisodes = videosData.videos.map((video, index) => {
-            // Video title'dan episode numarasını çıkar (örn: "Naruto - 1. Bölüm" -> 1)
-            const episodeMatch = video.title.match(/(\d+)\.?\s*Bölüm/i) || 
-                                video.title.match(/Episode\s*(\d+)/i) ||
-                                video.title.match(/Ep\s*(\d+)/i)
-            const episodeNumber = episodeMatch ? parseInt(episodeMatch[1]) : index + 1
-            
-            return {
-              episodeNumber: episodeNumber,
-              title: video.title,
-              url: `https://iframe.mediadelivery.net/embed/${videosData.libraryId || BUNNY_LIBRARY_ID}/${video.guid}`,
-              videoId: video.guid,
-              thumbnail: video.thumbnailFileName ? 
-                `https://vz-${video.storageZoneName}.b-cdn.net/${video.guid}/${video.thumbnailFileName}` : 
-                null,
-              duration: video.length || 0,
-              views: video.views || 0
-            }
-          })
-          
-          // Episode numarasına göre sırala
-          bunnyEpisodes.sort((a, b) => a.episodeNumber - b.episodeNumber)
-          setEpisodes(bunnyEpisodes)
-        } else {
-          setEpisodes([])
-        }
+        setEpisodes(formattedEpisodes)
+      } else {
+        setEpisodes([])
       }
     } catch (err) {
       console.error('Error loading episodes:', err)
       setEpisodes([])
-    } finally {
-      setLoadingEpisodes(false)
     }
   }
 
@@ -268,8 +223,8 @@ function AnimeDetail() {
                     <p className="text-white font-bold text-xl">{anime.year}</p>
                   </div>
                   <div>
-                    <p className="text-white/40 text-sm mb-1">Ekleyen</p>
-                    <p className="text-white font-bold text-xl">{anime.createdBy}</p>
+                    <p className="text-white/40 text-sm mb-1">Kalite</p>
+                    <p className="text-white font-bold text-xl">{anime.quality || 'HD'}</p>
                   </div>
                 </div>
               </div>
@@ -280,73 +235,36 @@ function AnimeDetail() {
           <div className="glassmorphic rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white">📺 Bölümler</h2>
-              {selectedSeason && (
-                <span className="text-white/60 text-sm">
-                  {selectedSeason.episodeCount} bölüm
-                </span>
-              )}
+              <span className="text-white/60 text-sm">
+                {episodes.length} bölüm
+              </span>
             </div>
 
-            {/* Sezon Seçici */}
-            {seasons.length > 1 && (
-              <div className="mb-6">
-                <div className="flex flex-wrap gap-2">
-                  {seasons.map((season) => (
-                    <button
-                      key={season.seasonNumber}
-                      onClick={() => loadSeasonEpisodes(anime, season)}
-                      disabled={loadingEpisodes}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        selectedSeason?.seasonNumber === season.seasonNumber
-                          ? 'bg-primary text-background-dark'
-                          : 'bg-white/10 text-white hover:bg-white/20'
-                      } disabled:opacity-50`}
-                    >
-                      Sezon {season.seasonNumber} ({season.totalEpisodes || 0} bölüm)
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {loadingEpisodes ? (
+            {episodes.length === 0 ? (
               <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
-                <p className="text-white/60">Bölümler yükleniyor...</p>
+                <div className="text-6xl mb-4">📭</div>
+                <p className="text-white/60 text-lg">Henüz bölüm eklenmemiş</p>
               </div>
-            ) : episodes.length > 0 ? (
+            ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {(showAllEpisodes ? episodes : episodes.slice(0, 12)).map((episode, index) => (
                   <motion.div
-                    key={episode.episode || index}
+                    key={episode.episodeId || index}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => {
-                      // Anime slug oluştur
-                      const slug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-                      // Episode number
-                      const epNumber = episode.episode || (index + 1)
-                      // Sezon numarası
-                      const season = selectedSeason?.seasonNumber || 1
-                      navigate(`/watch/${slug}/${season}/${epNumber}`)
+                      // Navigate to watch page with episodeId
+                      navigate(`/watch/${anime.id}/${episode.episodeId}`)
                     }}
                     className="bg-black/30 border border-white/10 rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer group"
                   >
                     {/* Thumbnail */}
                     <div className="relative mb-3 rounded-lg overflow-hidden bg-black/50 aspect-video">
-                      {episode.thumbnailFileName ? (
-                        <img
-                          src={`https://${import.meta.env.VITE_BUNNY_CDN_HOSTNAME}/${episode.guid}/${episode.thumbnailFileName}`}
-                          alt={episode.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-4xl">🎬</span>
-                        </div>
-                      )}
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-4xl">🎬</span>
+                      </div>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                           <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
@@ -358,12 +276,12 @@ function AnimeDetail() {
 
                     {/* Episode Info */}
                     <h3 className="text-white font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      Bölüm {episode.episode || (index + 1)}
+                      Bölüm {episode.episodeNumber}
                     </h3>
-                    
-                    <div className="flex items-center text-sm text-white/60">
-                      <span>📺 Sezon {selectedSeason?.seasonNumber || 1}</span>
-                    </div>
+                    <p className="text-white/60 text-sm line-clamp-1">{episode.title}</p>
+                    {episode.isFiller && (
+                      <span className="inline-block mt-2 px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded">Filler</span>
+                    )}
                   </motion.div>
                   ))}
                 </div>
@@ -388,27 +306,48 @@ function AnimeDetail() {
                   </div>
                 )}
               </>
-            ) : (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📭</div>
-                <p className="text-white/60 text-lg">Henüz bölüm eklenmemiş</p>
-                <p className="text-white/40 text-sm mt-2">
-                  Admin panelden bölüm ekleyebilirsiniz
-                </p>
-              </div>
             )}
           </div>
+
+          {/* Recommended Animes */}
+          {recommendedAnimes.length > 0 && (
+            <div className="glassmorphic rounded-xl p-6 mt-8">
+              <h2 className="text-2xl font-bold text-white mb-6">💡 Önerilen Animeler</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {recommendedAnimes.slice(0, 5).map((recAnime) => (
+                  <Link
+                    key={recAnime.id}
+                    to={`/anime/${recAnime.id}`}
+                    className="group"
+                  >
+                    <div className="relative rounded-lg overflow-hidden aspect-[3/4] bg-gradient-to-br from-primary/20 to-background-dark">
+                      <img
+                        src={recAnime.poster}
+                        alt={recAnime.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    </div>
+                    <h3 className="text-white font-semibold mt-2 line-clamp-2 group-hover:text-primary transition-colors">
+                      {recAnime.name}
+                    </h3>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
 
       <Footer />
       
       {/* Add to List Modal */}
-      <AddToListModal
-        isOpen={showAddToListModal}
-        onClose={() => setShowAddToListModal(false)}
-        anime={anime}
-      />
+      {anime && (
+        <AddToListModal
+          isOpen={showAddToListModal}
+          onClose={() => setShowAddToListModal(false)}
+          anime={anime}
+        />
+      )}
     </div>
   )
 }

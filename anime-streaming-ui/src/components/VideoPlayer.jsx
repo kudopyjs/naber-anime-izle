@@ -3,11 +3,25 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import './VideoPlayer.css';
 
-export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
+export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded, useProxy = true }) {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const [quality, setQuality] = useState('auto');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+
+  // Proxy server URL
+  const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:5000';
+
+  // Convert video URL to use proxy
+  const getProxiedUrl = (url) => {
+    if (!url || !useProxy) return url;
+    
+    // If already proxied, return as is
+    if (url.includes('/proxy?url=')) return url;
+    
+    // Proxy the URL
+    return `${PROXY_URL}/proxy?url=${encodeURIComponent(url)}`;
+  };
 
   useEffect(() => {
     // Video.js player oluştur
@@ -38,6 +52,7 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
           vhs: {
             overrideNative: true,
             enableLowInitialPlaylist: true,
+            withCredentials: false, // Important for CORS
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -85,9 +100,14 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
     const player = playerRef.current;
 
     if (player && src) {
+      // Use proxied URL for HiAnime streams
+      const videoUrl = getProxiedUrl(src);
+      
+      console.log('🎬 Loading video:', videoUrl);
+      
       // HLS source set et
       player.src({
-        src: src,
+        src: videoUrl,
         type: 'application/x-mpegURL',
       });
 
@@ -96,7 +116,7 @@ export default function VideoPlayer({ src, poster, onTimeUpdate, onEnded }) {
         player.poster(poster);
       }
     }
-  }, [src, poster]);
+  }, [src, poster, useProxy]);
 
   useEffect(() => {
     const player = playerRef.current;

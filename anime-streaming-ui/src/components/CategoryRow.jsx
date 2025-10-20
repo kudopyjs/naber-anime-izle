@@ -52,9 +52,11 @@ function CategoryRow({ title, animes, genre = 'action' }) {
             key={anime.id}
             id={anime.id}
             title={anime.name || anime.title}
-            rating={anime.rating}
-            image={anime.coverImage || anime.image}
+            rating={anime.rating || 'N/A'}
+            image={anime.poster || anime.coverImage || anime.image}
             genre={anime.genres?.[0] || genre}
+            episodes={anime.episodes}
+            type={anime.type}
           />
         ))}
       </div>
