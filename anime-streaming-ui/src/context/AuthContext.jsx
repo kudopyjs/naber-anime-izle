@@ -38,16 +38,16 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user])
 
-  const login = async (email, password) => {
+  const login = async (username, password) => {
     // Simulate API call
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         // Get stored users from localStorage
         const storedUsers = JSON.parse(localStorage.getItem('users') || '[]')
         
-        // Find user with matching email and password
+        // Find user with matching username and password
         const foundUser = storedUsers.find(
-          u => u.email === email && u.password === password
+          u => u.username === username && u.password === password
         )
 
         if (foundUser) {
@@ -57,18 +57,18 @@ export const AuthProvider = ({ children }) => {
             username: foundUser.username,
             picture: foundUser.picture || null,
             role: foundUser.role || 'user',
-            loginMethod: 'email'
+            loginMethod: 'username'
           }
           setUser(userData)
           resolve(userData)
         } else {
-          reject(new Error('Invalid email or password'))
+          reject(new Error('Invalid username or password'))
         }
       }, 500) // Simulate network delay
     })
   }
 
-  const signup = async (username, email, password, role = 'user') => {
+  const signup = async (username, email, password) => {
     // Simulate API call
     return new Promise(async (resolve, reject) => {
       setTimeout(async () => {
@@ -82,13 +82,13 @@ export const AuthProvider = ({ children }) => {
           return
         }
 
-        // Create new user with role
+        // Create new user (always 'user' role by default)
         const newUser = {
           id: Date.now().toString(),
           username,
           email,
           password, // In production, this should be hashed on the backend!
-          role: role, // 'user', 'fansub', or 'admin'
+          role: 'user', // Always 'user' role
           createdAt: new Date().toISOString()
         }
 
@@ -118,7 +118,7 @@ export const AuthProvider = ({ children }) => {
           username: newUser.username,
           picture: null,
           role: newUser.role,
-          loginMethod: 'email'
+          loginMethod: 'username'
         }
         setUser(userData)
         resolve(userData)

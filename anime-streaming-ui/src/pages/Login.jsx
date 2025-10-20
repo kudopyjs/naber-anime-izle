@@ -12,7 +12,7 @@ function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: '',
     remember: false
   })
@@ -42,7 +42,7 @@ function Login() {
     setLoading(true)
 
     try {
-      await login(formData.email, formData.password)
+      await login(formData.username, formData.password)
       navigate('/')
     } catch (err) {
       setError(err.message)
@@ -107,17 +107,17 @@ function Login() {
               </div>
             )}
 
-            {/* Email */}
+            {/* Username */}
             <div>
               <label className="block text-sm font-medium text-white/90 mb-2">
-                Email
+                Username
               </label>
               <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="Enter your email"
+                placeholder="Enter your username"
                 required
               />
             </div>

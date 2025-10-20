@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Watch from './pages/Watch'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import Search from './pages/Search'
 import UploadVideoNew from './pages/UploadVideoNew'
 import AdminPanel from './pages/AdminPanel'
 import AddAnime from './pages/AddAnime'
@@ -20,6 +21,7 @@ function App() {
         <div className="min-h-screen bg-background-dark">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/search" element={<Search />} />
             <Route 
               path="/watch/:animeSlug/:episodeId" 
               element={

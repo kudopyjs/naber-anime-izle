@@ -21,8 +21,12 @@ function Watch() {
   const [videoError, setVideoError] = useState('')
   const [currentCategory, setCurrentCategory] = useState('sub')
   const [currentServer, setCurrentServer] = useState('hd-2')
+  const [retryCount, setRetryCount] = useState(0)
+  const [retryTimer, setRetryTimer] = useState(null)
   
   const PROXY_SERVER = import.meta.env.VITE_PROXY_URL || 'http://localhost:5000'
+  const MAX_RETRIES = 5
+  const RETRY_DELAYS = [2000, 3000, 5000, 8000, 10000] // Exponential backoff in ms
   
   // Get episode number from URL
   const urlParams = new URLSearchParams(window.location.search)
@@ -38,14 +42,17 @@ function Watch() {
     }
   }, [currentEpisodeId, currentCategory, currentServer])
   
-  // Cleanup HLS on unmount
+  // Cleanup HLS and retry timer on unmount
   useEffect(() => {
     return () => {
       if (hlsRef.current) {
         hlsRef.current.destroy()
       }
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
     }
-  }, [])
+  }, [retryTimer])
 
   const loadAnimeData = async () => {
     setLoading(true)
@@ -116,11 +123,20 @@ function Watch() {
     }
   }
 
-  const loadVideo = async () => {
+  const loadVideo = async (isRetry = false) => {
     if (!currentEpisodeId) return
     
+    // Clear any existing retry timer
+    if (retryTimer) {
+      clearTimeout(retryTimer)
+      setRetryTimer(null)
+    }
+    
     setLoadingVideo(true)
-    setVideoError('')
+    if (!isRetry) {
+      setRetryCount(0)
+      setVideoError('')
+    }
     
     try {
       console.log('🎬 Loading video:', currentEpisodeId, currentCategory, currentServer)
@@ -188,16 +204,26 @@ function Watch() {
           if (data.fatal) {
             switch (data.type) {
               case window.Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Network error, trying to recover...')
+                console.log('Network error, attempting recovery...')
                 hls.startLoad()
+                // If recovery fails, trigger retry
+                setTimeout(() => {
+                  if (retryCount < MAX_RETRIES) {
+                    scheduleRetry()
+                  }
+                }, 2000)
                 break
               case window.Hls.ErrorTypes.MEDIA_ERROR:
                 console.log('Media error, trying to recover...')
                 hls.recoverMediaError()
                 break
               default:
-                setVideoError('Fatal error loading video: ' + data.details)
-                setLoadingVideo(false)
+                if (retryCount < MAX_RETRIES) {
+                  scheduleRetry()
+                } else {
+                  setVideoError('Video yüklenemedi. Lütfen farklı bir sunucu deneyin.')
+                  setLoadingVideo(false)
+                }
                 break
             }
           }
@@ -215,9 +241,29 @@ function Watch() {
       
     } catch (err) {
       console.error('❌ Error loading video:', err)
-      setVideoError(err.message || 'Video yüklenemedi')
-      setLoadingVideo(false)
+      
+      // Retry logic
+      if (retryCount < MAX_RETRIES) {
+        scheduleRetry()
+      } else {
+        setVideoError(err.message || 'Video yüklenemedi. Lütfen farklı bir sunucu deneyin.')
+        setLoadingVideo(false)
+      }
     }
+  }
+  
+  const scheduleRetry = () => {
+    const delay = RETRY_DELAYS[retryCount] || RETRY_DELAYS[RETRY_DELAYS.length - 1]
+    console.log(`🔄 Retry ${retryCount + 1}/${MAX_RETRIES} in ${delay/1000}s...`)
+    
+    setVideoError(`Video yükleniyor... (Deneme ${retryCount + 1}/${MAX_RETRIES})`)
+    
+    const timer = setTimeout(() => {
+      setRetryCount(prev => prev + 1)
+      loadVideo(true)
+    }, delay)
+    
+    setRetryTimer(timer)
   }
   
   const loadHlsScript = () => {
@@ -311,32 +357,6 @@ function Watch() {
                   poster={anime?.poster}
                 />
                 
-                {/* Loading Overlay */}
-                {loadingVideo && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                    <div className="text-center">
-                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4"></div>
-                      <p className="text-white">Video yükleniyor...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Error Overlay */}
-                {videoError && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                    <div className="text-center max-w-md px-4">
-                      <span className="text-6xl mb-4 block">❌</span>
-                      <p className="text-white text-lg mb-2">Video yüklenemedi</p>
-                      <p className="text-white/60 text-sm mb-4">{videoError}</p>
-                      <button
-                        onClick={() => loadVideo()}
-                        className="px-6 py-2 bg-primary text-background-dark rounded-lg font-bold hover:bg-primary/80 transition-colors"
-                      >
-                        Tekrar Dene
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </motion.div>
 

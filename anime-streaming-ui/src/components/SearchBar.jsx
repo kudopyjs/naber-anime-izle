@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import aniwatchApi from '../services/aniwatchApi'
 
 function SearchBar() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -57,6 +58,14 @@ function SearchBar() {
     setShowSuggestions(false)
   }
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && query.trim()) {
+      navigate(`/search?q=${encodeURIComponent(query)}`)
+      setQuery('')
+      setShowSuggestions(false)
+    }
+  }
+
   return (
     <div ref={searchRef} className="relative hidden md:flex items-center">
       <div className="flex items-center bg-card-dark/50 rounded-lg overflow-hidden border border-white/10 focus-within:border-primary transition-colors">
@@ -69,6 +78,7 @@ function SearchBar() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyPress={handleKeyPress}
           onFocus={() => query && setShowSuggestions(true)}
           placeholder="Search for anime..."
           className="bg-transparent text-white placeholder-white/50 px-4 py-2 outline-none w-64"
