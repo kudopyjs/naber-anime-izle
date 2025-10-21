@@ -1,9 +1,28 @@
-import { useRef } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import AnimeCard from './AnimeCard'
 
 function CategoryRow({ title, animes, genre = 'action' }) {
   const scrollRef = useRef(null)
+  const [uniqueAnimes, setUniqueAnimes] = useState([])
+
+  // Remove duplicates based on anime id
+  useEffect(() => {
+    const seen = new Set()
+    const filtered = animes.filter(anime => {
+      if (seen.has(anime.id)) {
+        return false
+      }
+      seen.add(anime.id)
+      return true
+    })
+    setUniqueAnimes(filtered)
+  }, [animes])
+
+  // Duplicate animes for infinite scroll effect (5 copies for smoother experience)
+  const displayAnimes = uniqueAnimes.length > 0 
+    ? [...uniqueAnimes, ...uniqueAnimes, ...uniqueAnimes, ...uniqueAnimes, ...uniqueAnimes]
+    : []
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -14,6 +33,60 @@ function CategoryRow({ title, animes, genre = 'action' }) {
       })
     }
   }
+
+  // Handle infinite scroll with seamless looping
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container || displayAnimes.length === 0) return
+
+    let isScrolling = false
+    let scrollTimeout
+
+    const handleScroll = () => {
+      // Clear timeout
+      clearTimeout(scrollTimeout)
+      
+      // Set scrolling flag
+      isScrolling = true
+      
+      // Set timeout to detect when scrolling stops
+      scrollTimeout = setTimeout(() => {
+        isScrolling = false
+        
+        const scrollWidth = container.scrollWidth
+        const clientWidth = container.clientWidth
+        const scrollLeft = container.scrollLeft
+        const maxScroll = scrollWidth - clientWidth
+        
+        // Calculate one set width (1/5 of total since we have 5 copies)
+        const oneSetWidth = scrollWidth / 5
+        
+        // If we're near the end (last 20%), jump to equivalent position in middle
+        if (scrollLeft > maxScroll - oneSetWidth * 0.2) {
+          const offset = scrollLeft - (oneSetWidth * 4)
+          container.scrollLeft = oneSetWidth * 2 + offset
+        }
+        // If we're near the start (first 20%), jump to equivalent position in middle
+        else if (scrollLeft < oneSetWidth * 0.2) {
+          const offset = scrollLeft
+          container.scrollLeft = oneSetWidth * 2 + offset
+        }
+      }, 150) // Wait 150ms after scroll stops
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    
+    // Set initial position to middle set (2/5 of total width)
+    setTimeout(() => {
+      const oneSetWidth = container.scrollWidth / 5
+      container.scrollLeft = oneSetWidth * 2
+    }, 100)
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      clearTimeout(scrollTimeout)
+    }
+  }, [displayAnimes])
 
   return (
     <div className="mb-12">
@@ -47,9 +120,9 @@ function CategoryRow({ title, animes, genre = 'action' }) {
         ref={scrollRef}
         className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-4"
       >
-        {animes.map((anime) => (
+        {displayAnimes.map((anime, index) => (
           <AnimeCard
-            key={anime.id}
+            key={`${anime.id}-${index}`}
             id={anime.id}
             title={anime.name || anime.title}
             rating={anime.rating || 'N/A'}

@@ -13,7 +13,7 @@ function Signup() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -56,7 +56,7 @@ function Signup() {
     setLoading(true)
 
     try {
-      await signup(formData.username, formData.email, formData.password)
+      await signup(formData.name, formData.email, formData.password)
       navigate('/')
     } catch (err) {
       setError(err.message)
@@ -106,10 +106,10 @@ function Signup() {
         <div className="glassmorphic rounded-xl p-8 shadow-2xl border border-primary/20">
           {/* Logo */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white text-glow-cyan mb-2">
-              ANIMEX
+            <h1 className="text-4xl font-bold text-white mb-2">
+              keyani.me
             </h1>
-            <p className="text-white/80">Enter the Anime Realm</p>
+            <p className="text-white/80">Anime Dünyasına Katıl</p>
           </div>
 
           {/* Form */}
@@ -128,10 +128,10 @@ function Signup() {
               </label>
               <input
                 type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/50 transition-all"
-                placeholder="Choose a username"
+                placeholder="Enter your name"
                 required
               />
             </div>

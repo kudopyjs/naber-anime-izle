@@ -1,37 +1,41 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useAuth } from '../context/AuthContext'
+import { getWatchHistory, removeFromHistory } from '../utils/watchHistory'
 
 function ContinueWatching() {
-  const { user } = useAuth()
+  const [watchHistory, setWatchHistory] = useState([])
 
-  // Mock data - in production, this would come from user's watch history
-  const continueWatchingData = [
-    {
-      id: 1,
-      title: 'Cybernetic Echoes',
-      episode: 7,
-      progress: 65, // percentage
-      thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCrM-ake220VcwIftnHrIBbIruMwoHsP0iO4gGDwt2-vO7jxWiVzTn3KZmB-HlU2QtwfroYqwNR5kSGayfF2iv9JZ25jMkamJTO37KfGqtKKYXm5hCabPAnzqEYa1aRCiFO1CNtOiIfK8XM1CtFl89-FJ1SyYfJoJ3XwikRzpJCopobZfVWQBrL6MV-ENHSaOTodRbqmD8wOHEpQyEOnde16fTVrKRSbsYVvipRnsQMAKxHFkJkpP9fAHR7j0Bu147LyRwLsH_y4k2I'
-    },
-    {
-      id: 2,
-      title: 'Blade of the Void',
-      episode: 12,
-      progress: 30,
-      thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCtCYVBqXi_y3XIWh3y2JG93_7kWHsNPzZundyKLW-bwPPav8SLhboFyP9KVzfA1TqaMUQsxCPtcHXnxZBgVKaTmJThv-nXy8KdedtzxMCe0l0Kw8VIjpQbsq4v6PX1gwWEmiTEiBr7g5zYW5mUoMDMDCwUwdp-AsmpLkXrZOHFkQLPNFx1onJozIVZwnSv91oGmJEz6f2y_c3K_kgD7Xbf3wWWxGVDlpliuLKHiGK5I1LcmkTkWO8oFDYdczaiiG8Up3wrFtaNzM3E'
-    },
-    {
-      id: 3,
-      title: "Shadow's Creed",
-      episode: 5,
-      progress: 80,
-      thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAc2ypnUaAZX6m49SpUOVfun7xws2fGNnJylXkXbXz0xUkJtoy9k1NK-cH4wgcmvBx5c3l7po65ByfRn6KXP5tPPo9MJ7jCLNq2ZFnNFpLL3n7VbN8-_x41YOqry_djcng04jqV5hPJ429eKudWPJx9Zak8FbPPxLf-neeG3BwZth74NmHoePFozi5fM36mealhLuzx_o7nd6o7pJqfVUCDnc7Q_UXdKZYHSOtRxlX_cL6XI9kjAc2mMXKOA5AmZGOAV6qBKTqszfX9'
-    }
-  ]
+  useEffect(() => {
+    loadWatchHistory()
+  }, [])
 
-  // Don't show if user is not logged in
-  if (!user) return null
+  const loadWatchHistory = () => {
+    const history = getWatchHistory()
+    console.log('📺 Continue Watching - Loaded history:', history.length, 'items')
+    console.log('📺 History data:', history)
+    
+    // Log the constructed URLs for debugging
+    history.forEach(anime => {
+      const epId = anime.episodeId.split('?ep=')[1] || anime.episodeNumber
+      // animeId is already the full anime slug (e.g., "no-longer-allowed-in-another-world-19247")
+      const url = `/watch/${anime.animeId}?ep=${epId}`
+      console.log(`🔗 ${anime.animeName} Ep${anime.episodeNumber} → ${url}`)
+      console.log(`   animeId: ${anime.animeId}, episodeId: ${anime.episodeId}`)
+    })
+    
+    setWatchHistory(history)
+  }
+
+  const handleRemove = (animeId, e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    removeFromHistory(animeId)
+    loadWatchHistory()
+  }
+
+  // Don't show if no watch history
+  if (watchHistory.length === 0) return null
 
   return (
     <div className="mb-12">
@@ -42,20 +46,31 @@ function ContinueWatching() {
       </div>
 
       <div className="flex gap-4 overflow-x-auto no-scrollbar px-4 pb-4">
-        {continueWatchingData.map((anime) => (
+        {watchHistory.map((anime) => (
           <motion.div
-            key={anime.id}
+            key={anime.animeId}
             whileHover={{ scale: 1.05, y: -5 }}
             transition={{ duration: 0.3 }}
-            className="flex-shrink-0 w-80"
+            className="flex-shrink-0 w-80 relative group"
           >
-            <Link to={`/watch/${anime.id}`}>
+            <Link to={`/watch/${anime.animeId}?ep=${anime.episodeId.split('?ep=')[1] || anime.episodeNumber}`}>
               <div className="rounded-xl overflow-hidden bg-card-dark/50 shadow-lg hover:glow-cyan transition-all duration-300 border border-white/5">
+                {/* Remove Button */}
+                <button
+                  onClick={(e) => handleRemove(anime.animeId, e)}
+                  className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                  title="Remove from history"
+                >
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
                 {/* Thumbnail with Progress */}
                 <div className="relative aspect-video overflow-hidden">
                   <img
-                    src={anime.thumbnail}
-                    alt={anime.title}
+                    src={anime.poster}
+                    alt={anime.animeName}
                     className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
                   />
                   
@@ -80,10 +95,13 @@ function ContinueWatching() {
                 {/* Info */}
                 <div className="p-4">
                   <h3 className="text-white font-semibold text-base mb-1 truncate">
-                    {anime.title}
+                    {anime.animeName}
                   </h3>
                   <p className="text-white/60 text-sm">
-                    Episode {anime.episode} • {anime.progress}% watched
+                    Episode {anime.episodeNumber} • {anime.progress}% watched
+                  </p>
+                  <p className="text-white/40 text-xs mt-1 truncate">
+                    {anime.episodeTitle}
                   </p>
                 </div>
               </div>

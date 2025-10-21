@@ -213,6 +213,86 @@ class AniwatchApiService {
   }
 
   /**
+   * GET Top Airing Animes
+   * @param {number} page - Page number (default: 1)
+   * @returns {Promise} Top airing animes
+   */
+  async getTopAiring(page = 1) {
+    try {
+      const response = await fetch(`${ANIWATCH_API_BASE}/api/v2/hianime/top-airing?page=${page}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching top airing:', error)
+      throw error
+    }
+  }
+
+  /**
+   * GET Most Popular Animes
+   * @param {number} page - Page number (default: 1)
+   * @returns {Promise} Most popular animes
+   */
+  async getMostPopular(page = 1) {
+    try {
+      const response = await fetch(`${ANIWATCH_API_BASE}/api/v2/hianime/most-popular?page=${page}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching most popular:', error)
+      throw error
+    }
+  }
+
+  /**
+   * GET Most Favorite Animes
+   * @param {number} page - Page number (default: 1)
+   * @returns {Promise} Most favorite animes
+   */
+  async getMostFavorite(page = 1) {
+    try {
+      const response = await fetch(`${ANIWATCH_API_BASE}/api/v2/hianime/most-favorite?page=${page}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching most favorite:', error)
+      throw error
+    }
+  }
+
+  /**
+   * GET Completed Animes
+   * @param {number} page - Page number (default: 1)
+   * @returns {Promise} Completed animes
+   */
+  async getCompleted(page = 1) {
+    try {
+      const response = await fetch(`${ANIWATCH_API_BASE}/api/v2/hianime/completed?page=${page}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching completed:', error)
+      throw error
+    }
+  }
+
+  /**
+   * GET Recently Updated Animes
+   * @param {number} page - Page number (default: 1)
+   * @returns {Promise} Recently updated animes
+   */
+  async getRecentlyUpdated(page = 1) {
+    try {
+      const response = await fetch(`${ANIWATCH_API_BASE}/api/v2/hianime/recently-updated?page=${page}`)
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching recently updated:', error)
+      throw error
+    }
+  }
+
+  /**
    * GET Estimated Schedules
    * @param {string} date - Date in YYYY-MM-DD format
    * @returns {Promise} Scheduled animes

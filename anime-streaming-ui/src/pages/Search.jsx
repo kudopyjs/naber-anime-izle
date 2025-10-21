@@ -12,17 +12,64 @@ function Search() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [hasSearched, setHasSearched] = useState(false)
+  const [category, setCategory] = useState(searchParams.get('category') || '')
 
   useEffect(() => {
     const q = searchParams.get('q')
+    const cat = searchParams.get('category')
     const page = parseInt(searchParams.get('page') || '1')
     
     if (q) {
       setQuery(q)
       setCurrentPage(page)
       performSearch(q, page)
+    } else if (cat) {
+      setCategory(cat)
+      setCurrentPage(page)
+      loadCategory(cat, page)
     }
   }, [searchParams])
+
+  const loadCategory = async (categoryName, page = 1) => {
+    setLoading(true)
+    setHasSearched(true)
+
+    try {
+      let response
+      switch(categoryName) {
+        case 'top-airing':
+          response = await aniwatchApi.getTopAiring(page)
+          break
+        case 'most-popular':
+          response = await aniwatchApi.getMostPopular(page)
+          break
+        case 'recently-updated':
+          response = await aniwatchApi.getRecentlyUpdated(page)
+          break
+        case 'most-favorite':
+          response = await aniwatchApi.getMostFavorite(page)
+          break
+        case 'completed':
+          response = await aniwatchApi.getCompleted(page)
+          break
+        default:
+          response = await aniwatchApi.getTopAiring(page)
+      }
+
+      if (response.status === 200 && response.data) {
+        setResults(response.data.animes || [])
+        setTotalPages(response.data.totalPages || 1)
+        setCurrentPage(response.data.currentPage || page)
+      } else {
+        setResults([])
+      }
+    } catch (error) {
+      console.error('Category load error:', error)
+      setResults([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const performSearch = async (searchQuery, page = 1) => {
     if (!searchQuery.trim()) return

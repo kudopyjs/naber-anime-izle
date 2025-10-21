@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import { useMaintenanceMode } from '../context/MaintenanceContext'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import BulkAnimeImport from './BulkAnimeImport'
 import API_BASE_URL from '../config/api'
 
+const USER_API_BASE = import.meta.env.VITE_DOWNLOAD_API_URL || 'http://localhost:5001'
+
 function AdminPanel() {
   const navigate = useNavigate()
   const { user, canManageServer } = useAuth()
+  const { isMaintenanceMode, toggleMaintenanceMode } = useMaintenanceMode()
   const [activeTab, setActiveTab] = useState('categories')
   const [categories, setCategories] = useState([])
   const [animes, setAnimes] = useState([])
@@ -96,9 +100,21 @@ function AdminPanel() {
   }
 
   const loadBackendUsers = async () => {
-    // Backend'den tüm kullanıcıları yükle (şimdilik users.json'dan)
-    // Not: Backend'de tüm kullanıcıları listeleyen endpoint yok, 
-    // bu yüzden localStorage'daki kullanıcıları kullanıyoruz
+    try {
+      const response = await fetch(`${USER_API_BASE}/api/users`)
+      const data = await response.json()
+      
+      if (data.users) {
+        setUsers(data.users)
+      } else {
+        console.error('Failed to load users from backend')
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+      // Fallback to localStorage
+      const loadedUsers = JSON.parse(localStorage.getItem('users') || '[]')
+      setUsers(loadedUsers)
+    }
   }
 
   const handleBunnySync = async (anime) => {
@@ -215,19 +231,53 @@ function AdminPanel() {
   }
 
   // User Management
-  const handleChangeUserRole = (userId, newRole) => {
-    const updated = users.map(u => 
-      u.id === userId ? { ...u, role: newRole } : u
-    )
-    setUsers(updated)
-    localStorage.setItem('users', JSON.stringify(updated))
+  const handleChangeUserRole = async (userId, newRole) => {
+    try {
+      const response = await fetch(`${USER_API_BASE}/api/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        const updated = users.map(u => 
+          u.id === userId ? { ...u, role: newRole } : u
+        )
+        setUsers(updated)
+      } else {
+        alert('Failed to update user role')
+      }
+    } catch (error) {
+      console.error('Error updating user role:', error)
+      alert('Error updating user role')
+    }
   }
 
-  const handleDeleteUser = (userId) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      const updated = users.filter(u => u.id !== userId)
-      setUsers(updated)
-      localStorage.setItem('users', JSON.stringify(updated))
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`${USER_API_BASE}/api/users/${userId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Update local state
+        const updated = users.filter(u => u.id !== userId)
+        setUsers(updated)
+      } else {
+        alert('Failed to delete user')
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      alert('Error deleting user')
     }
   }
 
@@ -299,6 +349,16 @@ function AdminPanel() {
               }`}
             >
               Statistics
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`px-6 py-3 font-semibold transition-colors whitespace-nowrap ${
+                activeTab === 'settings'
+                  ? 'text-primary border-b-2 border-primary'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              ⚙️ Settings
             </button>
           </div>
 
@@ -586,7 +646,7 @@ function AdminPanel() {
                   <tbody>
                     {users.map((u) => (
                       <tr key={u.id} className="border-b border-white/5">
-                        <td className="text-white p-3">{u.username}</td>
+                        <td className="text-white p-3">{u.name || u.username}</td>
                         <td className="text-white/60 p-3">{u.email}</td>
                         <td className="p-3">
                           <select
@@ -600,7 +660,7 @@ function AdminPanel() {
                           </select>
                         </td>
                         <td className="text-white/60 p-3 text-sm">
-                          {new Date(u.createdAt).toLocaleDateString()}
+                          {new Date(u.created_at || u.createdAt).toLocaleDateString()}
                         </td>
                         <td className="p-3">
                           <button
@@ -626,6 +686,78 @@ function AdminPanel() {
                 {users.length === 0 && (
                   <p className="text-white/60 text-center py-8">No users found.</p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Settings */}
+          {activeTab === 'settings' && (
+            <div className="glassmorphic rounded-xl p-6">
+              <h2 className="text-2xl font-bold text-white mb-6">Site Settings</h2>
+              
+              {/* Maintenance Mode */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between p-6 bg-white/5 rounded-lg border border-white/10">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                      🔧 Bakım Modu
+                    </h3>
+                    <p className="text-white/60 mb-4">
+                      Bakım modunu aktif ettiğinizde, admin olmayan kullanıcılar siteye erişemez ve bakım sayfasına yönlendirilir.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <div className={`px-4 py-2 rounded-lg font-semibold ${
+                        isMaintenanceMode 
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                          : 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      }`}>
+                        {isMaintenanceMode ? '🔴 Bakım Modu Aktif' : '🟢 Site Açık'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      console.log('🔘 Maintenance button clicked. Current mode:', isMaintenanceMode)
+                      toggleMaintenanceMode()
+                      // Force page reload to see changes
+                      setTimeout(() => {
+                        console.log('🔄 Reloading page to apply changes...')
+                        window.location.reload()
+                      }, 500)
+                    }}
+                    className={`px-8 py-4 rounded-lg font-bold transition-all transform hover:scale-105 ${
+                      isMaintenanceMode
+                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                        : 'bg-red-500 hover:bg-red-600 text-white'
+                    }`}
+                  >
+                    {isMaintenanceMode ? '✅ Siteyi Aç' : '🔒 Bakıma Al'}
+                  </button>
+                </div>
+
+                {/* Warning */}
+                {isMaintenanceMode && (
+                  <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <p className="text-yellow-400 text-sm">
+                      ⚠️ <strong>Uyarı:</strong> Bakım modu aktif! Sadece admin kullanıcılar siteye erişebilir.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Other Settings (placeholder) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 bg-white/5 rounded-lg border border-white/10">
+                  <h4 className="text-white font-semibold mb-2">📊 Site İstatistikleri</h4>
+                  <p className="text-white/60 text-sm">Toplam Kullanıcı: {users.length}</p>
+                  <p className="text-white/60 text-sm">Toplam Anime: {animes.length}</p>
+                </div>
+
+                <div className="p-6 bg-white/5 rounded-lg border border-white/10">
+                  <h4 className="text-white font-semibold mb-2">🔐 Güvenlik</h4>
+                  <p className="text-white/60 text-sm">Admin Paneli Korumalı</p>
+                  <p className="text-white/60 text-sm">Bakım Modu: {isMaintenanceMode ? 'Aktif' : 'Pasif'}</p>
+                </div>
               </div>
             </div>
           )}

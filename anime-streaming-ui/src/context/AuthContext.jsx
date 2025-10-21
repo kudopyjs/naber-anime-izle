@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import API_BASE_URL from '../config/api'
+
+const API_BASE = import.meta.env.VITE_DOWNLOAD_API_URL || 'http://localhost:5001'
 
 const AuthContext = createContext(null)
 
@@ -38,92 +39,74 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user])
 
-  const login = async (username, password) => {
-    // Simulate API call
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Get stored users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]')
-        
-        // Find user with matching username and password
-        const foundUser = storedUsers.find(
-          u => u.username === username && u.password === password
-        )
+  const login = async (email, password) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
 
-        if (foundUser) {
-          const userData = {
-            id: foundUser.id,
-            email: foundUser.email,
-            username: foundUser.username,
-            picture: foundUser.picture || null,
-            role: foundUser.role || 'user',
-            loginMethod: 'username'
-          }
-          setUser(userData)
-          resolve(userData)
-        } else {
-          reject(new Error('Invalid username or password'))
-        }
-      }, 500) // Simulate network delay
-    })
-  }
+      const data = await response.json()
 
-  const signup = async (username, email, password) => {
-    // Simulate API call
-    return new Promise(async (resolve, reject) => {
-      setTimeout(async () => {
-        // Get stored users from localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]')
-        
-        // Check if email already exists
-        const existingUser = storedUsers.find(u => u.email === email)
-        if (existingUser) {
-          reject(new Error('Email already registered'))
-          return
-        }
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed')
+      }
 
-        // Create new user (always 'user' role by default)
-        const newUser = {
-          id: Date.now().toString(),
-          username,
-          email,
-          password, // In production, this should be hashed on the backend!
-          role: 'user', // Always 'user' role
-          createdAt: new Date().toISOString()
-        }
-
-        // Save to localStorage
-        storedUsers.push(newUser)
-        localStorage.setItem('users', JSON.stringify(storedUsers))
-        
-        // Backend'de user oluştur ve otomatik "Daha Sonra İzle" listesi ekle
-        try {
-          await fetch(`${API_BASE_URL}/user/create`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: newUser.id,
-              username: newUser.username,
-              email: newUser.email
-            })
-          })
-        } catch (err) {
-          console.error('Error creating user in backend:', err)
-        }
-
-        // Set as current user
+      if (data.success && data.user) {
         const userData = {
-          id: newUser.id,
-          email: newUser.email,
-          username: newUser.username,
-          picture: null,
-          role: newUser.role,
-          loginMethod: 'username'
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role || 'user',
+          createdAt: data.user.createdAt,
+          loginMethod: 'email'
         }
         setUser(userData)
-        resolve(userData)
-      }, 500) // Simulate network delay
-    })
+        return userData
+      } else {
+        throw new Error('Invalid response from server')
+      }
+    } catch (error) {
+      throw error
+    }
+  }
+
+  const signup = async (name, email, password) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/users/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, email, password })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed')
+      }
+
+      if (data.success && data.user) {
+        const userData = {
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role || 'user',
+          createdAt: data.user.createdAt,
+          loginMethod: 'email'
+        }
+        setUser(userData)
+        return userData
+      } else {
+        throw new Error('Invalid response from server')
+      }
+    } catch (error) {
+      throw error
+    }
   }
 
   const loginWithGoogle = (googleUserInfo) => {

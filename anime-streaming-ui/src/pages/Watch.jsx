@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import aniwatchApi from '../services/aniwatchApi'
+import { saveWatchProgress } from '../utils/watchHistory'
+
+// Lazy load video player for better initial load
+const CustomVideoPlayer = lazy(() => import('../components/CustomVideoPlayer'))
 
 function Watch() {
   const { animeSlug } = useParams()
@@ -23,6 +27,8 @@ function Watch() {
   const [currentServer, setCurrentServer] = useState('hd-2')
   const [retryCount, setRetryCount] = useState(0)
   const [retryTimer, setRetryTimer] = useState(null)
+  const [subtitles, setSubtitles] = useState([])
+  const [introOutro, setIntroOutro] = useState({ intro: null, outro: null })
   
   const PROXY_SERVER = import.meta.env.VITE_PROXY_URL || 'http://localhost:5000'
   const MAX_RETRIES = 5
@@ -59,9 +65,13 @@ function Watch() {
     setError('')
     
     try {
-      // Anime bilgilerini al
-      const animeJson = await aniwatchApi.getAnimeInfo(animeSlug)
+      // Paralel olarak anime bilgileri ve bölümleri yükle (daha hızlı)
+      const [animeJson, episodesJson] = await Promise.all([
+        aniwatchApi.getAnimeInfo(animeSlug),
+        aniwatchApi.getAnimeEpisodes(animeSlug)
+      ])
       
+      // Anime bilgilerini set et
       if (animeJson.status === 200 && animeJson.data) {
         const animeInfo = animeJson.data.anime.info
         setAnime({
@@ -72,18 +82,12 @@ function Watch() {
         })
       }
       
-      // Bölümleri al
-      const episodesJson = await aniwatchApi.getAnimeEpisodes(animeSlug)
-      
+      // Bölümleri işle
       if (episodesJson.status === 200 && episodesJson.data) {
         const episodes = episodesJson.data.episodes || []
         setAllEpisodes(episodes)
         
         console.log('📺 Episodes loaded:', episodes.length)
-        if (episodes.length > 0) {
-          console.log('First episode:', episodes[0])
-          console.log('Last episode:', episodes[episodes.length - 1])
-        }
         
         // Find the correct episode
         let foundEpisode = null
@@ -92,24 +96,19 @@ function Watch() {
           // Try to find by ep parameter in episodeId
           foundEpisode = episodes.find(ep => ep.episodeId.includes(`?ep=${requestedEpNumber}`))
           
-          if (foundEpisode) {
-            console.log('✅ Found episode by ep ID:', foundEpisode.episodeId)
-          } else {
+          if (!foundEpisode) {
             // Try to find by episode number
             foundEpisode = episodes.find(ep => ep.number === parseInt(requestedEpNumber))
-            if (foundEpisode) {
-              console.log('✅ Found episode by number:', foundEpisode.number, '→', foundEpisode.episodeId)
-            }
           }
         }
         
         // If no episode found or no episode requested, use first episode
         if (!foundEpisode && episodes.length > 0) {
           foundEpisode = episodes[0]
-          console.log('Loading first episode:', foundEpisode.episodeId)
         }
         
         if (foundEpisode) {
+          console.log('✅ Loading episode:', foundEpisode.episodeId)
           setCurrentEpisode(foundEpisode)
           setCurrentEpisodeId(foundEpisode.episodeId)
         }
@@ -149,6 +148,7 @@ function Watch() {
       )
       
       console.log('✅ Sources data:', sourcesData)
+      console.log('📦 Full data object:', JSON.stringify(sourcesData.data, null, 2))
       
       if (!sourcesData.data || !sourcesData.data.sources || sourcesData.data.sources.length === 0) {
         throw new Error('No video sources available')
@@ -159,6 +159,32 @@ function Watch() {
       const videoUrl = source.url
       
       console.log('📹 Video URL:', videoUrl)
+      
+      // Get subtitles from tracks
+      let subtitleTracks = []
+      
+      if (sourcesData.data.tracks && Array.isArray(sourcesData.data.tracks)) {
+        // Filter out thumbnails and map to proper format
+        subtitleTracks = sourcesData.data.tracks
+          .filter(track => track.lang && track.lang.toLowerCase() !== 'thumbnails')
+          .map(track => ({
+            file: track.url,
+            label: track.lang,
+            kind: 'subtitles'
+          }))
+      }
+      
+      console.log('📝 Subtitles found:', subtitleTracks.length, 'tracks')
+      console.log('🎬 Intro:', sourcesData.data.intro)
+      console.log('🎬 Outro:', sourcesData.data.outro)
+      
+      setSubtitles(subtitleTracks)
+      
+      // Set intro/outro times
+      setIntroOutro({
+        intro: sourcesData.data.intro,
+        outro: sourcesData.data.outro
+      })
       
       // Proxy the URL through our server
       const proxiedUrl = `${PROXY_SERVER}/proxy?url=${encodeURIComponent(videoUrl)}`
@@ -283,13 +309,12 @@ function Watch() {
   }
   
   const handleEpisodeChange = (episode) => {
-    setCurrentEpisode(episode)
-    setCurrentEpisodeId(episode.episodeId)
-    
-    // Update URL
+    // Extract episode number from episodeId
     const epMatch = episode.episodeId.match(/\?ep=(\d+)/)
     const episodeNumber = epMatch ? epMatch[1] : episode.number
-    navigate(`/watch/${animeSlug}?ep=${episodeNumber}`, { replace: true })
+    
+    // Navigate to new episode and reload page for clean state
+    window.location.href = `/watch/${animeSlug}?ep=${episodeNumber}`
   }
 
   const currentIndex = allEpisodes.findIndex(ep => ep.episodeId === currentEpisodeId)
@@ -345,19 +370,25 @@ function Watch() {
               animate={{ opacity: 1, y: 0 }}
               className="rounded-xl overflow-hidden bg-black shadow-2xl mb-6"
             >
-              {/* Video Player */}
-              <div className="relative w-full aspect-video bg-black">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full"
-                  controls
-                  controlsList="nodownload"
-                  playsInline
-                  crossOrigin="anonymous"
-                  poster={anime?.poster}
+              {/* Custom Video Player with Suspense */}
+              <Suspense fallback={
+                <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-primary border-t-transparent mb-4"></div>
+                    <p className="text-white/60">Player yükleniyor...</p>
+                  </div>
+                </div>
+              }>
+                <CustomVideoPlayer
+                  videoRef={videoRef}
+                  hlsRef={hlsRef}
+                  anime={anime}
+                  currentEpisode={currentEpisode}
+                  subtitles={subtitles}
+                  proxyServer={PROXY_SERVER}
+                  introOutro={introOutro}
                 />
-                
-              </div>
+              </Suspense>
             </motion.div>
 
             {/* Episode Info */}

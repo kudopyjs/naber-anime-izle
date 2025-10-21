@@ -255,8 +255,9 @@ function AnimeDetail() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
                     onClick={() => {
-                      // Navigate to watch page with episodeId
-                      navigate(`/watch/${anime.id}/${episode.episodeId}`)
+                      // Navigate to watch page with episode number as query param
+                      const epNumber = episode.episodeId.split('?ep=')[1] || episode.number
+                      navigate(`/watch/${anime.id}?ep=${epNumber}`)
                     }}
                     className="bg-black/30 border border-white/10 rounded-lg p-4 hover:border-primary/50 transition-all cursor-pointer group"
                   >

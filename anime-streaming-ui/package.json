@@ -9,11 +9,18 @@
     "preview": "vite preview",
     "server": "node server/download-upload-api.js",
     "turkanime-api": "node server/turkanime-api.js",
-    "b2-api": "node server/b2-upload-api.js"
+    "b2-api": "node server/b2-upload-api.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop anime-api",
+    "pm2:restart": "pm2 restart anime-api",
+    "pm2:delete": "pm2 delete anime-api",
+    "pm2:logs": "pm2 logs anime-api",
+    "pm2:status": "pm2 status"
   },
   "dependencies": {
     "axios": "^1.6.2",
     "backblaze-b2": "^1.7.0",
+    "bcrypt": "^6.0.0",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -27,7 +34,8 @@
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

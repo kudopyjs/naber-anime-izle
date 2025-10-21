@@ -24,6 +24,14 @@ app.use(express.json())
 
 const PORT = process.env.DOWNLOAD_API_PORT || 5001
 
+// Import list API routes
+import listRouter from './list-api.js'
+app.use('/api/lists', listRouter)
+
+// Import user API routes
+import userRouter from './user-api.js'
+app.use('/api/users', userRouter)
+
 // Bunny.net config
 const BUNNY_API_KEY = process.env.VITE_BUNNY_STREAM_API_KEY
 const LIBRARY_ID = process.env.VITE_BUNNY_LIBRARY_ID

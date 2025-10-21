@@ -1,32 +1,35 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useAuth } from '../context/AuthContext'
-import API_BASE_URL from '../config/api'
+import listService from '../services/listService'
 
 function AddToListModal({ isOpen, onClose, anime }) {
-  const { user } = useAuth()
-  const [lists, setLists] = useState([])
+  const [defaultLists, setDefaultLists] = useState(null)
+  const [customLists, setCustomLists] = useState([])
+  const [animeInLists, setAnimeInLists] = useState([])
   const [loading, setLoading] = useState(false)
   const [showCreateList, setShowCreateList] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [newListDescription, setNewListDescription] = useState('')
-  const [newListIsPublic, setNewListIsPublic] = useState(false)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    if (isOpen && user) {
-      loadUserLists()
+    if (isOpen && anime) {
+      loadLists()
     }
-  }, [isOpen, user])
+  }, [isOpen, anime])
 
-  const loadUserLists = async () => {
+  const loadLists = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/user/${user.id}/lists?viewerId=${user.id}`)
-      const data = await response.json()
-      if (data.success) {
-        setLists(data.lists)
-      }
+      const [defaultListsData, customListsData, animeListsData] = await Promise.all([
+        listService.getDefaultLists(),
+        listService.getLists(),
+        listService.checkAnimeInLists(anime.id)
+      ])
+
+      setDefaultLists(defaultListsData)
+      setCustomLists(customListsData.lists || [])
+      setAnimeInLists(animeListsData.lists || [])
     } catch (err) {
       console.error('Error loading lists:', err)
     } finally {
@@ -34,55 +37,35 @@ function AddToListModal({ isOpen, onClose, anime }) {
     }
   }
 
-  const handleAddToList = async (listId) => {
-    try {
-      const animeSlug = anime.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-      
-      const response = await fetch(`${API_BASE_URL}/list/${listId}/add-anime`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          animeSlug: animeSlug,
-          animeName: anime.name
-        })
-      })
+  const isInList = (listId) => {
+    return animeInLists.some(item => item.id === listId)
+  }
 
-      const data = await response.json()
-      if (data.success) {
-        // Liste güncellendi
-        loadUserLists()
-        alert('Anime listeye eklendi!')
+  const handleToggleList = async (listId) => {
+    try {
+      if (isInList(listId)) {
+        await listService.removeFromList(listId, anime.id)
+      } else {
+        await listService.addToList(listId, anime)
       }
+      await loadLists()
     } catch (err) {
-      console.error('Error adding to list:', err)
+      console.error('Error toggling list:', err)
       alert('Hata oluştu!')
     }
   }
 
   const handleCreateList = async (e) => {
     e.preventDefault()
+    if (!newListName.trim()) return
+
     setCreating(true)
-
     try {
-      const response = await fetch(`${API_BASE_URL}/list/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          name: newListName,
-          description: newListDescription,
-          isPublic: newListIsPublic
-        })
-      })
-
-      const data = await response.json()
-      if (data.success) {
-        setNewListName('')
-        setNewListDescription('')
-        setNewListIsPublic(false)
-        setShowCreateList(false)
-        loadUserLists()
-      }
+      await listService.createList(newListName, newListDescription)
+      setNewListName('')
+      setNewListDescription('')
+      setShowCreateList(false)
+      await loadLists()
     } catch (err) {
       console.error('Error creating list:', err)
       alert('Liste oluşturulamadı!')
@@ -130,45 +113,90 @@ function AddToListModal({ isOpen, onClose, anime }) {
 
           {!showCreateList ? (
             <>
-              {/* Lists */}
+              {/* Loading */}
               {loading ? (
                 <div className="text-center py-8">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
                 </div>
-              ) : lists.length > 0 ? (
-                <div className="space-y-2 mb-4">
-                  {lists.map(list => {
-                    const animeSlug = anime?.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-                    const isInList = list.animes.some(a => a.slug === animeSlug)
-                    
-                    return (
-                      <button
-                        key={list.id}
-                        onClick={() => !isInList && handleAddToList(list.id)}
-                        disabled={isInList}
-                        className={`w-full p-4 rounded-lg text-left transition-all ${
-                          isInList
-                            ? 'bg-green-500/20 border border-green-500/30 cursor-not-allowed'
-                            : 'bg-white/5 hover:bg-white/10 border border-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-white font-semibold">{list.name}</p>
-                            <p className="text-white/60 text-sm">
-                              {list.animes.length} anime • {list.isPublic ? '🌐 Public' : '🔒 Private'}
-                            </p>
-                          </div>
-                          {isInList && (
-                            <span className="text-green-400">✓</span>
-                          )}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
               ) : (
-                <p className="text-white/60 text-center py-8">Henüz listeniz yok</p>
+                <div className="space-y-4 mb-6">
+                  {/* Default Lists */}
+                  {defaultLists && (
+                    <div className="space-y-2">
+                      <h3 className="text-white/60 text-sm font-semibold mb-2">Varsayılan Listeler</h3>
+                      {[
+                        { key: 'watching', list: defaultLists.watching, icon: '▶️', label: 'İzliyorum' },
+                        { key: 'completed', list: defaultLists.completed, icon: '✅', label: 'Tamamladım' },
+                        { key: 'planToWatch', list: defaultLists.planToWatch, icon: '📝', label: 'İzleme Listesi' },
+                        { key: 'dropped', list: defaultLists.dropped, icon: '❌', label: 'Bıraktım' }
+                      ].map(({ key, list, icon, label }) => {
+                        if (!list) return null
+                        const inList = isInList(list.id)
+                        
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => handleToggleList(list.id)}
+                            className={`w-full px-4 py-3 rounded-lg transition-all text-left ${
+                              inList
+                                ? 'bg-primary/20 border-2 border-primary'
+                                : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl">{icon}</span>
+                                <div>
+                                  <p className="text-white font-semibold">{label}</p>
+                                  <p className="text-white/60 text-sm">
+                                    {list.item_count || 0} anime
+                                  </p>
+                                </div>
+                              </div>
+                              {inList && (
+                                <span className="text-primary text-xl">✓</span>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Custom Lists */}
+                  {customLists.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-white/60 text-sm font-semibold mb-2">Özel Listeler</h3>
+                      {customLists.map(list => {
+                        const inList = isInList(list.id)
+                        
+                        return (
+                          <button
+                            key={list.id}
+                            onClick={() => handleToggleList(list.id)}
+                            className={`w-full px-4 py-3 rounded-lg transition-all text-left ${
+                              inList
+                                ? 'bg-primary/20 border-2 border-primary'
+                                : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-white font-semibold">{list.name}</p>
+                                {list.description && (
+                                  <p className="text-white/60 text-sm">{list.description}</p>
+                                )}
+                              </div>
+                              {inList && (
+                                <span className="text-primary text-xl">✓</span>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Create New List Button */}
@@ -203,19 +231,6 @@ function AddToListModal({ isOpen, onClose, anime }) {
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:border-primary focus:outline-none resize-none"
                   placeholder="Liste hakkında kısa açıklama..."
                 />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="isPublic"
-                  checked={newListIsPublic}
-                  onChange={(e) => setNewListIsPublic(e.target.checked)}
-                  className="w-5 h-5 rounded border-white/20 bg-white/5 text-primary focus:ring-primary"
-                />
-                <label htmlFor="isPublic" className="text-white">
-                  Public (Herkes görebilir)
-                </label>
               </div>
 
               <div className="flex gap-3">

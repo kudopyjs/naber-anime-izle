@@ -23,11 +23,8 @@ function Navbar() {
       <div className="flex items-center justify-between px-4 py-4">
         {/* Logo and Navigation */}
         <div className="flex items-center gap-8">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="text-3xl text-primary group-hover:scale-110 transition-transform">
-              🎌
-            </div>
-            <span className="text-xl font-bold text-white hidden md:block">
+          <Link to="/" className="flex items-center gap-3 group">
+            <span className="text-2xl font-bold text-white">
               keyani.me
             </span>
           </Link>
@@ -37,26 +34,26 @@ function Navbar() {
               to="/" 
               className="text-white hover:text-primary transition-colors font-medium"
             >
-              Home
+              🏠 Ana Sayfa
             </Link>
-            <a 
-              href="#genres" 
+            <Link 
+              to="/search?category=top-airing" 
               className="text-white hover:text-primary transition-colors font-medium"
             >
-              Genres
-            </a>
-            <a 
-              href="#episodes" 
+              📡 Yayında
+            </Link>
+            <Link 
+              to="/search?category=most-popular" 
               className="text-white hover:text-primary transition-colors font-medium"
             >
-              New Episodes
-            </a>
-            <a 
-              href="#mylist" 
+              ⭐ Popüler
+            </Link>
+            <Link 
+              to="/search?category=recently-updated" 
               className="text-white hover:text-primary transition-colors font-medium"
             >
-              My List
-            </a>
+              🆕 Son Bölümler
+            </Link>
           </div>
         </div>
 
@@ -135,7 +132,7 @@ function Navbar() {
                         className="block px-4 py-2 text-primary hover:bg-white/10 transition-colors text-sm font-semibold"
                         onClick={() => setShowUserMenu(false)}
                       >
-                        📤 Upload Video
+                        📤 Video Yükle
                       </Link>
                     )}
                     
@@ -158,7 +155,7 @@ function Navbar() {
                       }}
                       className="w-full text-left px-4 py-2 text-red-400 hover:bg-white/10 transition-colors text-sm"
                     >
-                      Logout
+                      🚪 Çıkış Yap
                     </button>
                   </div>
                 </div>
@@ -167,11 +164,12 @@ function Navbar() {
           ) : (
             <Link 
               to="/login"
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-card-dark hover:bg-primary/20 border border-white/10 hover:border-primary transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary hover:bg-primary/80 transition-all font-semibold text-background-dark"
             >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
+              <span className="hidden md:block">Giriş Yap</span>
             </Link>
           )}
         </div>
