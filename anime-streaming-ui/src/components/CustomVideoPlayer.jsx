@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { saveWatchProgress } from '../utils/watchHistory'
 
-function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles = [], proxyServer, introOutro = {} }) {
+function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles = [], proxyServer, introOutro = {}, onTranslationStatus }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -15,6 +15,8 @@ function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles 
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false)
   const [showSkipIntro, setShowSkipIntro] = useState(false)
   const [showSkipOutro, setShowSkipOutro] = useState(false)
+  const [translatedSubtitles, setTranslatedSubtitles] = useState({})
+  const [translatingSubtitle, setTranslatingSubtitle] = useState(null)
   
   const containerRef = useRef(null)
   const controlsTimeoutRef = useRef(null)
@@ -241,6 +243,278 @@ function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles 
       } else if (document.msExitFullscreen) {
         document.msExitFullscreen()
       }
+    }
+  }
+
+  // Translate subtitle function
+  const pollForTranslation = async (cacheKey, subtitleUrl) => {
+    const maxAttempts = 60 // 60 attempts = 2 minutes max
+    let attempts = 0
+    
+    while (attempts < maxAttempts) {
+      try {
+        // Check if translation is complete (try to get from cache)
+        const response = await fetch(`${proxyServer}/translate-subtitle`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            subtitleUrl: subtitleUrl
+          })
+        })
+        
+        // If 200, translation is complete
+        if (response.ok && response.status === 200) {
+          const translatedVTT = await response.text()
+          console.log('✅ Translation retrieved from cache')
+          return translatedVTT
+        }
+        
+        // If still 202, check progress
+        if (response.status === 202) {
+          const queueData = await response.json()
+          
+          // Update progress
+          if (onTranslationStatus) {
+            onTranslationStatus({
+              status: 'queued',
+              progress: queueData.progress || 0,
+              queuePosition: queueData.queuePosition,
+              message: `Sırada ${queueData.queuePosition}. kişi - %${queueData.progress || 0}`
+            })
+          }
+          
+          // Wait 2 seconds before next poll
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          attempts++
+          continue
+        }
+        
+        throw new Error('Unexpected response status')
+        
+      } catch (error) {
+        console.error('❌ Polling error:', error)
+        attempts++
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+    }
+    
+    return null
+  }
+  
+  const translateSubtitle = async (track, index) => {
+    if (!track.needsTranslation) {
+      // Not a Turkish subtitle, just enable it
+      const video = videoRef.current
+      if (video && video.textTracks) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          video.textTracks[i].mode = i === index ? 'showing' : 'disabled'
+        }
+      }
+      setCurrentSubtitle(index)
+      return
+    }
+
+    // Check if already translated
+    if (translatedSubtitles[track.originalUrl]) {
+      console.log('✅ Using cached translation')
+      
+      // Update the track source with translated version
+      const video = videoRef.current
+      if (video && video.textTracks && video.textTracks[index]) {
+        const textTrack = video.textTracks[index]
+        textTrack.mode = 'showing'
+        
+        // Disable other tracks
+        for (let i = 0; i < video.textTracks.length; i++) {
+          if (i !== index) {
+            video.textTracks[i].mode = 'disabled'
+          }
+        }
+      }
+      
+      setCurrentSubtitle(index)
+      return
+    }
+
+    // Need to translate
+    try {
+      setTranslatingSubtitle(index)
+      console.log('🌍 Translating subtitle to Turkish...')
+      
+      // Notify parent about translation start
+      if (onTranslationStatus) {
+        onTranslationStatus({
+          status: 'translating',
+          progress: 0,
+          message: 'Çeviri başlatılıyor...',
+          estimated: 180
+        })
+      }
+      
+      // Start polling for progress (simulated for now)
+      const progressInterval = setInterval(() => {
+        // This will be replaced with actual API polling
+        if (onTranslationStatus) {
+          const currentProgress = Math.min(90, Math.floor(Math.random() * 30) + 30)
+          onTranslationStatus({
+            status: 'translating',
+            progress: currentProgress,
+            message: 'Yapay zeka çeviriyor...',
+            estimated: 180
+          })
+        }
+      }, 2000)
+
+      const response = await fetch(`${proxyServer}/translate-subtitle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subtitleUrl: track.originalUrl
+        })
+      })
+      
+      clearInterval(progressInterval)
+
+      // Check if queued (status 202)
+      if (response.status === 202) {
+        const queueData = await response.json()
+        console.log('⏳ In queue:', queueData)
+        
+        // Update status to show queue position
+        if (onTranslationStatus) {
+          onTranslationStatus({
+            status: 'queued',
+            progress: queueData.progress || 0,
+            queuePosition: queueData.queuePosition,
+            message: `Sırada ${queueData.queuePosition}. kişisiniz`,
+            cacheKey: queueData.cacheKey
+          })
+        }
+        
+        // Poll for completion
+        const translatedVTT = await this.pollForTranslation(queueData.cacheKey, track.originalUrl)
+        
+        if (!translatedVTT) {
+          throw new Error('Translation polling failed')
+        }
+        
+        // Continue with translated VTT
+        const blob = new Blob([translatedVTT], { type: 'text/vtt; charset=utf-8' })
+        const blobUrl = URL.createObjectURL(blob)
+        
+        setTranslatedSubtitles(prev => ({
+          ...prev,
+          [track.originalUrl]: blobUrl
+        }))
+        
+        setCurrentSubtitle(index)
+        
+        if (onTranslationStatus) {
+          onTranslationStatus({
+            status: 'completed',
+            progress: 100,
+            message: 'Çeviri tamamlandı!'
+          })
+          
+          setTimeout(() => {
+            onTranslationStatus(null)
+          }, 2000)
+        }
+        
+        setTimeout(() => {
+          const video = videoRef.current
+          if (video && video.textTracks && video.textTracks[index]) {
+            video.textTracks[index].mode = 'showing'
+            for (let i = 0; i < video.textTracks.length; i++) {
+              if (i !== index) {
+                video.textTracks[i].mode = 'disabled'
+              }
+            }
+          }
+        }, 100)
+        
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error('Translation failed')
+      }
+
+      const translatedVTT = await response.text()
+      
+      console.log('📄 Translated VTT preview:', translatedVTT.substring(0, 200))
+      
+      // Create blob URL for translated subtitle
+      const blob = new Blob([translatedVTT], { type: 'text/vtt; charset=utf-8' })
+      const blobUrl = URL.createObjectURL(blob)
+      
+      console.log('🔗 Blob URL created:', blobUrl)
+      
+      // Save to cache
+      setTranslatedSubtitles(prev => ({
+        ...prev,
+        [track.originalUrl]: blobUrl
+      }))
+      
+      console.log('💾 Saved to state cache')
+
+      // Force re-render by updating state
+      setCurrentSubtitle(index)
+      console.log('✅ Translation complete!')
+      
+      // Notify completion
+      if (onTranslationStatus) {
+        onTranslationStatus({
+          status: 'completed',
+          progress: 100,
+          message: 'Çeviri tamamlandı!'
+        })
+        
+        // Clear notification after 2 seconds
+        setTimeout(() => {
+          onTranslationStatus(null)
+        }, 2000)
+      }
+      
+      // Enable the track after a short delay to ensure it's loaded
+      setTimeout(() => {
+        const video = videoRef.current
+        if (video && video.textTracks && video.textTracks[index]) {
+          // Enable the translated track
+          video.textTracks[index].mode = 'showing'
+          
+          // Disable other tracks
+          for (let i = 0; i < video.textTracks.length; i++) {
+            if (i !== index) {
+              video.textTracks[i].mode = 'disabled'
+            }
+          }
+        }
+      }, 100)
+
+    } catch (error) {
+      console.error('❌ Translation error:', error)
+      
+      // Notify error
+      if (onTranslationStatus) {
+        onTranslationStatus({
+          status: 'error',
+          progress: 0,
+          message: 'Çeviri başarısız oldu'
+        })
+        
+        setTimeout(() => {
+          onTranslationStatus(null)
+        }, 3000)
+      }
+      
+      alert('Altyazı çevirisi başarısız oldu. Lütfen tekrar deneyin.')
+    } finally {
+      setTranslatingSubtitle(null)
     }
   }
 
@@ -528,16 +802,34 @@ function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles 
         controlsList="nodownload"
       >
         {/* Subtitles */}
-        {subtitles.map((track, index) => (
-          <track
-            key={index}
-            kind={track.kind || 'subtitles'}
-            src={track.file ? `${proxyServer}/proxy?url=${encodeURIComponent(track.file)}` : track.file}
-            srcLang={track.label?.toLowerCase() || 'en'}
-            label={track.label || `Subtitle ${index + 1}`}
-            default={index === 0}
-          />
-        ))}
+        {subtitles.map((track, index) => {
+          // Determine subtitle source
+          let subtitleSrc = ''
+          
+          if (track.needsTranslation) {
+            // Turkish subtitle - only use if translated
+            subtitleSrc = translatedSubtitles[track.originalUrl] || ''
+          } else {
+            // Other subtitles - proxy through server
+            subtitleSrc = track.file ? `${proxyServer}/proxy?url=${encodeURIComponent(track.file)}` : ''
+          }
+          
+          // Use unique key to force re-render when subtitle changes
+          const trackKey = track.needsTranslation && translatedSubtitles[track.originalUrl] 
+            ? `${index}-translated`
+            : `${index}-${track.label}`
+          
+          return (
+            <track
+              key={trackKey}
+              kind={track.kind || 'subtitles'}
+              src={subtitleSrc}
+              srcLang={track.needsTranslation ? 'tr' : track.label?.toLowerCase() || 'en'}
+              label={track.label || `Subtitle ${index + 1}`}
+              default={index === 0}
+            />
+          )
+        })}
       </video>
 
       {/* Top Bar */}
@@ -608,20 +900,22 @@ function CustomVideoPlayer({ videoRef, hlsRef, anime, currentEpisode, subtitles 
                             <button
                               key={index}
                               onClick={() => {
-                                const video = videoRef.current
-                                if (video && video.textTracks) {
-                                  for (let i = 0; i < video.textTracks.length; i++) {
-                                    video.textTracks[i].mode = i === index ? 'showing' : 'disabled'
-                                  }
-                                }
-                                setCurrentSubtitle(index)
+                                translateSubtitle(track, index)
                                 setShowSubtitleMenu(false)
                               }}
+                              disabled={translatingSubtitle === index}
                               className={`w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors ${
                                 currentSubtitle === index ? 'text-primary font-bold' : 'text-white'
-                              }`}
+                              } ${translatingSubtitle === index ? 'opacity-50 cursor-wait' : ''}`}
                             >
-                              {track.label || `Altyazı ${index + 1}`}
+                              {translatingSubtitle === index ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="inline-block animate-spin">⏳</span>
+                                  Çevriliyor...
+                                </span>
+                              ) : (
+                                track.label || `Altyazı ${index + 1}`
+                              )}
                             </button>
                           ))}
                         </motion.div>

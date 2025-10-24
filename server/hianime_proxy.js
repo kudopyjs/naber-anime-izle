@@ -3,12 +3,18 @@
  * Bypasses Cloudflare and CORS to stream videos directly from HiAnime
  */
 
+require('dotenv').config();
+
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const SubtitleTranslator = require('./subtitleTranslator');
 
 const app = express();
 const PORT = process.env.PROXY_PORT || 5000;
+
+// Initialize subtitle translator
+const subtitleTranslator = new SubtitleTranslator();
 
 // Enable JSON body parsing
 app.use(express.json());
@@ -451,6 +457,91 @@ app.get('/test', async (req, res) => {
   }
 });
 
+/**
+ * Get translation status
+ * GET /translation-status/:cacheKey
+ */
+app.get('/translation-status/:cacheKey', (req, res) => {
+  try {
+    const { cacheKey } = req.params;
+    
+    if (subtitleTranslator.translationQueue.has(cacheKey)) {
+      const queueItem = subtitleTranslator.translationQueue.get(cacheKey);
+      const elapsed = Math.floor((Date.now() - queueItem.startTime) / 1000);
+      const estimated = Math.ceil((elapsed / queueItem.progress) * 100);
+      
+      res.json({
+        status: 'translating',
+        progress: queueItem.progress,
+        elapsed: elapsed,
+        estimated: estimated
+      });
+    } else {
+      res.json({
+        status: 'not_found'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error checking translation status:', error.message);
+    res.status(500).json({ error: 'Failed to check status' });
+  }
+});
+
+/**
+ * Translate subtitle endpoint
+ * POST /translate-subtitle
+ * Body: { subtitleUrl }
+ */
+app.post('/translate-subtitle', async (req, res) => {
+  try {
+    const { subtitleUrl } = req.body;
+    
+    if (!subtitleUrl) {
+      return res.status(400).json({ error: 'Missing subtitleUrl parameter' });
+    }
+
+    console.log('🌍 Translating subtitle:', subtitleUrl);
+    
+    // Get cache key to check queue
+    const crypto = require('crypto');
+    const cacheKey = crypto.createHash('md5').update(subtitleUrl).digest('hex');
+    
+    // Check if already in queue
+    if (subtitleTranslator.translationQueue.has(cacheKey)) {
+      const queueItem = subtitleTranslator.translationQueue.get(cacheKey);
+      const queuePosition = Array.from(subtitleTranslator.translationQueue.keys()).indexOf(cacheKey) + 1;
+      
+      console.log(`⏳ Translation already in queue (position ${queuePosition})`);
+      
+      // Return queue status immediately
+      return res.status(202).json({
+        status: 'queued',
+        cacheKey: cacheKey,
+        queuePosition: queuePosition,
+        progress: queueItem.progress,
+        message: 'Translation in progress by another user'
+      });
+    }
+
+    // Translate subtitle
+    const translatedVTT = await subtitleTranslator.translateSubtitleFromURL(subtitleUrl);
+
+    // Return translated subtitle
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(translatedVTT);
+
+    console.log('✅ Subtitle translated and sent');
+
+  } catch (error) {
+    console.error('❌ Error translating subtitle:', error.message);
+    res.status(500).json({
+      error: 'Failed to translate subtitle',
+      message: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log('='.repeat(60));
@@ -459,6 +550,7 @@ app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📺 Proxy endpoint: http://localhost:${PORT}/proxy?url=<video_url>`);
   console.log(`🔍 Video info: POST http://localhost:${PORT}/get-video-info`);
+  console.log(`🌍 Translate subtitle: POST http://localhost:${PORT}/translate-subtitle`);
   console.log(`💚 Health check: http://localhost:${PORT}/health`);
   console.log('='.repeat(60));
 });
